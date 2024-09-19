@@ -1,3 +1,9 @@
+##### Nota para criar um ambiente para esse projeto, use o arquivo requirements.txt
+
+```bash
+pip install -r requirements.txt
+```
+
 ### O projeto AR_FINANCE
 
 __Objetivo:__ desenvolver uma aplicação que envolva múltioplas tecnologias, com o propósito de aprendizado e exploração de conceitos.
