@@ -1,0 +1,14 @@
+# Arquivo oculto do vscode
+.vscode
+
+# Arquivo oculto de controle do MacOs usado pelo Finder -> armazena informações de e preferências de visualização
+.DS_Store
+
+# Ignorando diretórios de apoio LAB_ARQ, LAB_IMA, LAB_REF e LEGADO
+LAB_ARQ/
+LAB_IMA/
+LAB_REF/
+LEGADO/
+
+# Ignorando o diretório TESTES
+TESTES/
