@@ -1,3 +1,6 @@
+# Dica -> usar git commit -am sempre que os arquivos modificados já forem rastreados
+# Dica -> usear git add . e git commit -m sempre que arquiivos novos ou ainda não rastreados estiverem presentes
+
 # Arquivo oculto do vscode
 .vscode
 
