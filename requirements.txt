@@ -11,6 +11,7 @@ dash-bootstrap-components==1.6.0
 dash-core-components==2.0.0
 dash-html-components==2.0.0
 dash-table==5.0.0
+et-xmlfile==1.1.0
 Flask==3.0.3
 fonttools==4.53.1
 frozendict==2.4.4
@@ -32,6 +33,7 @@ mplfinance==0.12.10b0
 multitasking==0.0.11
 nest-asyncio==1.6.0
 numpy==2.1.1
+openpyxl==3.1.5
 packaging==24.1
 pandas==2.2.2
 pandas-datareader==0.10.0
@@ -61,5 +63,6 @@ urllib3==2.2.2
 uvicorn==0.30.6
 webencodings==0.5.1
 Werkzeug==3.0.4
+XlsxWriter==3.2.0
 yfinance==0.2.43
 zipp==3.20.1
