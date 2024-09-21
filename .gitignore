@@ -1,5 +1,7 @@
 # Dica -> usar git commit -am sempre que os arquivos modificados já forem rastreados
-# Dica -> usear git add . e git commit -m sempre que arquiivos novos ou ainda não rastreados estiverem presentes
+# Dica -> usar git add . e git commit -m sempre que arquiivos novos ou ainda não rastreados estiverem presentes
+# Dica -> gerando o arquivo requirements.txt -> pip freeeze > requirements.txt
+# Dica -> reproduzindo o ambiente virtual -> pip install -r requirements.txt
 
 # Arquivo oculto do vscode
 .vscode

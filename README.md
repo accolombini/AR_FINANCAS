@@ -4,6 +4,16 @@
 pip install -r requirements.txt
 ```
 
+##### Reproduzindo um ambiente virtual
+
+```bash
+pip install -r requirements.txt
+```
+
+##### Dicas:
+>usar git commit -am sempre que os arquivos modificados já forem rastreados
+>usar git add . e git commit -m sempre que arquiivos novos ou ainda não rastreados estiverem presentes
+
 ### O projeto AR_FINANCE
 
 __Objetivo:__ desenvolver uma aplicação que envolva múltioplas tecnologias, com o propósito de aprendizado e exploração de conceitos.
