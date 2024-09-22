@@ -17,3 +17,6 @@ LEGADO/
 
 # Ignorando o diretório TESTES
 TESTES/
+
+# Ignorando o arquivo FINANCAS.docx
+O_PROJETO/FINANCAS.docx
