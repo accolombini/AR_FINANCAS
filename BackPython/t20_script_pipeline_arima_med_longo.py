@@ -36,21 +36,16 @@ from arch import arch_model
 from prophet import Prophet
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 import time
 
 # Função para carregar e preparar os dados
 
 
 def prepare_data(filepath, target_column):
-    # Carregar o arquivo
     df = pd.read_csv(filepath, index_col=0, parse_dates=True)
-    print("Amostra dos dados:")
-    print(df.head())
-    print("Colunas dos dados:", df.columns)
-
-    # Resampling para frequência mensal (usando 'ME' para evitar warnings)
-    df = df.resample('ME').mean()
-    df = df.ffill()  # Preenchendo valores ausentes
+    # Resampling para frequência mensal e preenchendo valores ausentes
+    df = df.resample('ME').mean().ffill()
     return df
 
 # Modelo Prophet ajustado para capturar sazonalidade
@@ -88,10 +83,10 @@ def garch_dynamic_model(df, target_column, steps=60):
     volatility_forecast = np.sqrt(forecast.variance.values).flatten()
     return pd.Series(volatility_forecast, name='GARCH_Volatility')
 
-# Função para ensemble de previsões com volatilidade dinâmica
+# Função para ensemble de previsões com volatilidade dinâmica e pesos ajustados
 
 
-def ensemble_forecast(prophet_forecast, arima_forecast, garch_volatility):
+def ensemble_forecast(prophet_forecast, arima_forecast, garch_volatility, weights=[0.5, 0.5]):
     min_length = min(len(prophet_forecast), len(
         arima_forecast), len(garch_volatility))
     prophet_forecast = prophet_forecast['yhat'].iloc[:min_length].reset_index(
@@ -101,11 +96,12 @@ def ensemble_forecast(prophet_forecast, arima_forecast, garch_volatility):
         drop=True)
 
     # Cálculo do ensemble e ajuste da volatilidade
-    combined_forecast = (prophet_forecast + arima_forecast) / 2
+    combined_forecast = (
+        weights[0] * prophet_forecast + weights[1] * arima_forecast)
     combined_forecast *= (1 + garch_volatility / 100)
     return combined_forecast
 
-# Função para exibir e plotar resultados
+# Função para exibir e plotar resultados com tabela de métricas
 
 
 def display_forecast_results(df, combined_forecast, prophet_forecast, arima_forecast):
@@ -131,6 +127,34 @@ def display_forecast_results(df, combined_forecast, prophet_forecast, arima_fore
     fig.update_layout(
         title="Previsões de Médio e Longo Prazo (2 a 5 anos)", showlegend=True, height=600)
     fig.show()
+
+# Função para calcular e exibir métricas de avaliação
+
+
+def calculate_metrics(df, combined_forecast, prophet_forecast, arima_forecast):
+    # Calcular MAPE e RMSE para cada modelo
+    metrics = {
+        "Modelo": ["Prophet", "ARIMA", "Ensemble"],
+        "RMSE": [
+            np.sqrt(mean_squared_error(
+                df['^BVSP'][-len(prophet_forecast):], prophet_forecast['yhat'])),
+            np.sqrt(mean_squared_error(
+                df['^BVSP'][-len(arima_forecast):], arima_forecast)),
+            np.sqrt(mean_squared_error(
+                df['^BVSP'][-len(combined_forecast):], combined_forecast))
+        ],
+        "MAPE (%)": [
+            mean_absolute_percentage_error(
+                df['^BVSP'][-len(prophet_forecast):], prophet_forecast['yhat']) * 100,
+            mean_absolute_percentage_error(
+                df['^BVSP'][-len(arima_forecast):], arima_forecast) * 100,
+            mean_absolute_percentage_error(
+                df['^BVSP'][-len(combined_forecast):], combined_forecast) * 100
+        ]
+    }
+    metrics_df = pd.DataFrame(metrics)
+    print("\nMétricas de Avaliação:")
+    print(metrics_df)
 
 # Função principal para execução
 
@@ -172,6 +196,10 @@ def main():
     # Exibir e plotar os resultados
     display_forecast_results(df, combined_forecast,
                              prophet_forecast, arima_forecast)
+
+    # Calcular e exibir métricas de avaliação
+    calculate_metrics(df, combined_forecast, prophet_forecast, arima_forecast)
+
     print(f"Tempo total de execução: {time.time() - start_time:.2f} segundos")
 
 
