@@ -8,9 +8,6 @@
     Feature Engineering Avançado: Adicione features que capturam sazonalidades de longo prazo(indicadores específicos, médias móveis de 6 a 12 meses) para apoiar previsões de longo prazo.
     Output atualizado: Dados históricos preparados, com features de curto e longo prazo e indicadores econômicos adicionais.
 
-    ||| > Your registered API key is : 8e5112d9a5cdfb3cff60e7486f2bec09 Documentation is available on the St. Louis Fed web services website.
-    8e5112d9a5cdfb3cff60e7486f2bec09
-
 '''
 
 # Importando bibliotecas necessárias
@@ -26,18 +23,16 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 def load_data():
-    asset_file = 'TESTES/DADOS/asset_data.csv'
-    econ_file = 'TESTES/DADOS/economic_data.csv'
+    asset_file = 'Back_Python/DADOS/asset_data.csv'
 
     # Verificar se os arquivos existem
     if not os.path.exists(asset_file) or not os.path.exists(econ_file):
-        raise FileNotFoundError("Os arquivos de dados não foram encontrados.")
+        raise FileNotFoundError("O arquivo de dado não foi encontrado.")
 
     # Carregar os dados
     asset_data = pd.read_csv(asset_file, index_col=0, parse_dates=True)
-    econ_data = pd.read_csv(econ_file, index_col=0, parse_dates=True)
 
-    return asset_data, econ_data
+    return asset_data
 
 # Função para normalizar os dados
 
@@ -49,7 +44,6 @@ def normalize_data(df):
     return df_normalized
 
 # Função para criar os gráficos de ativos normalizados
-
 
 # Função para criar os gráficos de ativos normalizados com destaque no IBOVESPA
 def create_asset_graph_with_benchmark(asset_data, assets):
