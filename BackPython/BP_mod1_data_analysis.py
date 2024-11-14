@@ -1,6 +1,9 @@
 # BP_mod1_data_analysis.py
 # Módulo para análise preliminar dos dados, incluindo estatísticas descritivas e cálculo de retornos anualizados
 
+# BP_mod1_data_analysis.py
+# Módulo para análise preliminar dos dados, incluindo estatísticas descritivas e cálculo de retornos anualizados
+
 import pandas as pd
 import numpy as np
 from BP_mod1_config import OUTPUT_DIR
@@ -30,32 +33,42 @@ class DataAnalysis:
         return df.isnull().mean() * 100
 
     @staticmethod
-    def identify_outliers(df, threshold=3):
+    def identify_outliers_iqr(df, threshold=1.5):
         """
-        Identifica outliers com base em um número de desvios padrão (por padrão, 3 desvios).
+        Identifica outliers usando o método do intervalo interquartil (IQR).
 
-        Retorna um DataFrame com a contagem de outliers para cada coluna.
+        Parâmetros:
+            - df: DataFrame com os dados dos ativos.
+            - threshold: Multiplicador para definir o intervalo de detecção (1.5 por padrão).
+
+        Retorna:
+            - Um DataFrame com a contagem de outliers para cada coluna.
         """
-        z_scores = np.abs((df - df.mean()) / df.std())
-        outliers = z_scores > threshold
-        return outliers.sum()
+        outliers = pd.DataFrame(index=df.columns, columns=['Outliers'])
+
+        for column in df.columns:
+            Q1 = df[column].quantile(0.25)
+            Q3 = df[column].quantile(0.75)
+            IQR = Q3 - Q1
+            outliers_count = df[(df[column] < Q1 - threshold * IQR)
+                                | (df[column] > Q3 + threshold * IQR)].shape[0]
+            outliers.loc[column] = outliers_count
+
+        return outliers
 
     @staticmethod
     def annual_returns(df):
         """
-        Calcula o retorno anualizado para cada ativo.
+        Calcula o retorno anual para cada ativo.
 
-        Retorna um DataFrame com os retornos anualizados em porcentagem.
+        Retorna um DataFrame com os retornos anuais em porcentagem.
         """
-        annual_returns = (df.pct_change().resample(
-            'Y').agg(lambda x: (1 + x).prod() - 1)) * 100
-        return annual_returns.mean()
+        return df.resample('YE').last().pct_change() * 100
 
     @staticmethod
     def save_clean_data(df, file_name='asset_data_cleaner.csv'):
         """Salva o DataFrame limpo no diretório de saída."""
         df.to_csv(f'{OUTPUT_DIR}/{file_name}')
-        print(f"Dados limpos salvos em: {OUTPUT_DIR}/{file_name}")
 
     @staticmethod
     def analyze_and_clean_data(file_path):
@@ -64,11 +77,11 @@ class DataAnalysis:
 
         - Carrega os dados.
         - Realiza análise preliminar (dimensões, estatísticas, dados faltantes, outliers).
-        - Calcula os retornos anualizados.
+        - Calcula os retornos anuais.
         - Salva os dados limpos.
 
         Retorna:
-            - Um dicionário com os resultados da análise preliminar.
+            - Um dicionário com os resultados da análise preliminar e tabela de retornos anuais.
         """
         # Carregar dados
         df = DataAnalysis.load_data(file_path)
@@ -78,7 +91,8 @@ class DataAnalysis:
             'Dimensions': DataAnalysis.data_dimensions(df),
             'Descriptive Statistics': DataAnalysis.descriptive_statistics(df),
             'Missing Data (%)': DataAnalysis.missing_data(df),
-            'Outliers Count': DataAnalysis.identify_outliers(df),
+            # Usando o método IQR para outliers
+            'Outliers Count': DataAnalysis.identify_outliers_iqr(df),
             'Annual Returns (%)': DataAnalysis.annual_returns(df)
         }
 
@@ -89,4 +103,4 @@ class DataAnalysis:
         # Salvar dados limpos
         DataAnalysis.save_clean_data(df)
 
-        return analysis
+        return analysis  # Retorna o dicionário de análise, mas não imprime no terminal

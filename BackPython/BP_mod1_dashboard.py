@@ -3,47 +3,24 @@
 
 import os
 import pandas as pd
-from dash import Dash, dcc, html
+from dash import Dash, dcc, html, dash_table
 import plotly.graph_objs as go
 from sklearn.preprocessing import MinMaxScaler
+from BP_mod1_data_analysis import DataAnalysis
+from BP_mod1_config import OUTPUT_DIR
 
 # Função para ler os dados salvos
 
 
-def load_data():
-    """
-    Carrega o arquivo de dados dos ativos.
-
-    Retorna:
-        - DataFrame com dados dos ativos.
-
-    Exceção:
-        - FileNotFoundError se o arquivo de dados dos ativos não for encontrado.
-    """
-    asset_file = 'BackPython/DADOS/asset_data.csv'
-
-    # Verificar se o arquivo de dados de ativos existe
-    if not os.path.exists(asset_file):
-        raise FileNotFoundError(
-            "O arquivo de dados de ativos não foi encontrado.")
-
-    # Carregar os dados dos ativos
-    asset_data = pd.read_csv(asset_file, index_col=0, parse_dates=True)
-    return asset_data
+def load_data(file_path):
+    """Carrega o arquivo de dados dos ativos."""
+    return pd.read_csv(file_path, index_col=0, parse_dates=True)
 
 # Função para normalizar os dados
 
 
 def normalize_data(df):
-    """
-    Normaliza os dados para que fiquem no intervalo [0, 1].
-
-    Parâmetro:
-        - df (DataFrame): DataFrame com os dados a serem normalizados.
-
-    Retorna:
-        - DataFrame normalizado.
-    """
+    """Normaliza os dados para o intervalo [0, 1]."""
     scaler = MinMaxScaler()
     df_normalized = pd.DataFrame(scaler.fit_transform(
         df), columns=df.columns, index=df.index)
@@ -53,34 +30,17 @@ def normalize_data(df):
 
 
 def create_asset_graph_with_benchmark(asset_data, assets):
-    """
-    Cria gráficos de linha para cada ativo, destacando o índice IBOVESPA.
-
-    Parâmetros:
-        - asset_data (DataFrame): Dados normalizados dos ativos.
-        - assets (list): Lista de ativos a serem plotados.
-
-    Retorna:
-        - Lista de traces (gráficos) para visualização.
-    """
+    """Cria gráficos de linha para cada ativo, destacando o índice IBOVESPA."""
     graphs = []
     for asset in assets:
-        if asset == '^BVSP':  # Destacar o índice BOVESPA
-            trace = go.Scatter(
-                x=asset_data.index,
-                y=asset_data[asset],
-                mode='lines',
-                name=asset,
-                # Linha vermelha, espessa, tracejada
-                line=dict(color='red', width=4, dash='dash')
-            )
-        else:
-            trace = go.Scatter(
-                x=asset_data.index,
-                y=asset_data[asset],
-                mode='lines',
-                name=asset
-            )
+        trace = go.Scatter(
+            x=asset_data.index,
+            y=asset_data[asset],
+            mode='lines',
+            name=asset,
+            line=dict(width=4 if asset == '^BVSP' else 2,
+                      dash='dash' if asset == '^BVSP' else 'solid')
+        )
         graphs.append(trace)
     return graphs
 
@@ -88,41 +48,60 @@ def create_asset_graph_with_benchmark(asset_data, assets):
 
 
 def main():
-    """
-    Inicializa o aplicativo Dash e exibe o dashboard de visualização de ativos.
-    """
+    """Inicializa o aplicativo Dash e exibe o dashboard de visualização de ativos."""
+
     # Inicializando o aplicativo Dash
     app = Dash(__name__)
 
-    # Carregar os dados
-    try:
-        asset_data = load_data()  # Carregar dados dos ativos
-    except FileNotFoundError as e:
-        print(str(e))
-        return  # Encerrar o programa se os dados não forem encontrados
-
-    # Lista de ativos a serem exibidos
-    assets = ['VALE3.SA', 'PETR4.SA', 'ITUB4.SA',
-              'PGCO34.SA', 'AAPL34.SA', 'AMZO34.SA', '^BVSP']
-
-    # Normalizar os dados dos ativos
+    # Carregar e analisar os dados
+    file_path = f'{OUTPUT_DIR}/asset_data_cleaner.csv'
+    asset_data = load_data(file_path)
+    analysis_results = DataAnalysis.analyze_and_clean_data(file_path)
     asset_data_normalized = normalize_data(asset_data)
 
     # Criar os gráficos normalizados com destaque no IBOVESPA
+    assets = list(asset_data.columns)
     asset_graphs = create_asset_graph_with_benchmark(
         asset_data_normalized, assets)
 
-    # Layout do Dash com títulos principais centralizados
+    # Layout do Dash com os elementos de tabela e gráficos
     app.layout = html.Div([
-        # Centralizar o título principal
-        html.H1("Visualização dos Ativos", style={'textAlign': 'center'}),
+        html.H1("Visualização dos Ativos e Indicadores de Pré-processamento",
+                style={'textAlign': 'center'}),
+
+        # Tabela: Dimensões dos Dados
+        html.H2("Dimensões dos Dados"),
+        dash_table.DataTable(data=[{'Dimensões': f"{analysis_results['Dimensions'][0]} linhas, {
+                             analysis_results['Dimensions'][1]} colunas"}]),
+
+        # Tabela: Estatísticas Descritivas
+        html.H2("Estatísticas Descritivas"),
+        dash_table.DataTable(
+            data=analysis_results['Descriptive Statistics'].reset_index().to_dict('records')),
+
+        # Tabela: Dados Faltantes
+        html.H2("Dados Faltantes (%)"),
+        dash_table.DataTable(
+            data=analysis_results['Missing Data (%)'].reset_index().to_dict('records')),
+
+        # Tabela: Outliers
+        html.H2("Contagem de Outliers"),
+        dash_table.DataTable(
+            data=analysis_results['Outliers Count'].reset_index().to_dict('records')),
+
+        # Tabela: Retornos Anuais
+        html.H2("Retornos Anuais (%)"),
+        dash_table.DataTable(
+            data=analysis_results['Annual Returns (%)'].reset_index().to_dict('records')),
+
+        # Gráfico de ativos normalizados
+        html.H2("Preços dos Ativos ao Longo do Tempo (Normalizados)"),
         dcc.Graph(
             id='ativos-grafico',
             figure={
                 'data': asset_graphs,
                 'layout': go.Layout(
-                    title={
-                        'text': 'Preços dos Ativos ao Longo do Tempo (Normalizados)', 'x': 0.5},
+                    title={'text': 'Preços dos Ativos Normalizados', 'x': 0.5},
                     xaxis={'title': 'Data'},
                     yaxis={'title': 'Valor Normalizado'}
                 )
