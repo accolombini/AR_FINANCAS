@@ -1,7 +1,7 @@
 # BP_mod2_data_preparation.py
+# Módulo para preparar dados financeiros para treinamento e teste
 
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
 # Constantes de proporção dos dados
@@ -33,25 +33,8 @@ def split_data(df):
     return train_data, validation_data, test_data
 
 
-def normalize_data(train_data, test_data, validation_data):
-    """
-    Normaliza os dados de treino, validação e teste usando MinMaxScaler com base nos dados de treino.
-    """
-    scaler = MinMaxScaler()
-    train_data_scaled = scaler.fit_transform(train_data)
-    test_data_scaled = scaler.transform(test_data)
-    validation_data_scaled = scaler.transform(validation_data)
-
-    # Convertendo de volta para DataFrame para facilitar o uso
-    train_data_scaled = pd.DataFrame(
-        train_data_scaled, columns=train_data.columns, index=train_data.index)
-    test_data_scaled = pd.DataFrame(
-        test_data_scaled, columns=test_data.columns, index=test_data.index)
-    validation_data_scaled = pd.DataFrame(
-        validation_data_scaled, columns=validation_data.columns, index=validation_data.index)
-
-    return train_data_scaled, test_data_scaled, validation_data_scaled, scaler
-
+# A função de normalização foi removida, pois cada modelo deve realizar o pré-processamento adequado
+# com base em suas próprias necessidades.
 
 def separate_features_target(data, target_column):
     """
@@ -72,17 +55,11 @@ def main():
     # Dividir os dados em treino, validação e teste
     train_data, validation_data, test_data = split_data(df)
 
-    # Normalizar os dados
-    train_data_scaled, test_data_scaled, validation_data_scaled, scaler = normalize_data(
-        train_data, test_data, validation_data)
-
-    # Separar as variáveis X e y para cada conjunto
+    # Separar as variáveis X e y para cada conjunto, sem normalização
     target_column = '^BVSP'  # Exemplo de coluna alvo; ajuste conforme necessário
-    X_train, y_train = separate_features_target(
-        train_data_scaled, target_column)
-    X_test, y_test = separate_features_target(test_data_scaled, target_column)
-    X_val, y_val = separate_features_target(
-        validation_data_scaled, target_column)
+    X_train, y_train = separate_features_target(train_data, target_column)
+    X_test, y_test = separate_features_target(test_data, target_column)
+    X_val, y_val = separate_features_target(validation_data, target_column)
 
     # Salvar os conjuntos preparados em CSV para uso posterior
     X_train.to_csv('BackPython/DADOS/X_train.csv')

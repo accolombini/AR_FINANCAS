@@ -10,39 +10,76 @@ from BP_mod1_config import OUTPUT_DIR
 
 
 class DataAnalysis:
-    """Classe para realizar análise preliminar dos dados de ativos."""
+    """
+    Classe para realizar análise preliminar dos dados de ativos financeiros. Inclui métodos para
+    calcular estatísticas descritivas, identificar dados faltantes, detectar outliers e calcular
+    retornos anualizados.
+    """
 
     @staticmethod
     def load_data(file_path):
-        """Carrega os dados de ativos do arquivo CSV especificado."""
+        """
+        Carrega os dados de ativos de um arquivo CSV especificado.
+
+        Parâmetros:
+            - file_path (str): Caminho do arquivo CSV a ser carregado.
+
+        Retorna:
+            - pd.DataFrame: DataFrame com os dados dos ativos.
+        """
         return pd.read_csv(file_path, index_col=0, parse_dates=True)
 
     @staticmethod
     def data_dimensions(df):
-        """Retorna a dimensão do DataFrame."""
+        """
+        Retorna as dimensões do DataFrame, ou seja, o número de linhas e colunas.
+
+        Parâmetros:
+            - df (pd.DataFrame): DataFrame cujas dimensões serão retornadas.
+
+        Retorna:
+            - tuple: Uma tupla com o número de linhas e colunas.
+        """
         return df.shape
 
     @staticmethod
     def descriptive_statistics(df):
-        """Calcula estatísticas descritivas básicas do DataFrame."""
+        """
+        Calcula estatísticas descritivas básicas do DataFrame, como média, desvio padrão, mínimo,
+        máximo e quartis.
+
+        Parâmetros:
+            - df (pd.DataFrame): DataFrame cujas estatísticas descritivas serão calculadas.
+
+        Retorna:
+            - pd.DataFrame: DataFrame com as estatísticas descritivas.
+        """
         return df.describe()
 
     @staticmethod
     def missing_data(df):
-        """Calcula o percentual de dados faltantes por coluna."""
+        """
+        Calcula o percentual de dados faltantes por coluna no DataFrame.
+
+        Parâmetros:
+            - df (pd.DataFrame): DataFrame cujos dados faltantes serão analisados.
+
+        Retorna:
+            - pd.Series: Série com o percentual de dados faltantes por coluna.
+        """
         return df.isnull().mean() * 100
 
     @staticmethod
     def identify_outliers_iqr(df, threshold=1.5):
         """
-        Identifica outliers usando o método do intervalo interquartil (IQR).
+        Identifica outliers em cada coluna do DataFrame usando o método do Intervalo Interquartil (IQR).
 
         Parâmetros:
-            - df: DataFrame com os dados dos ativos.
-            - threshold: Multiplicador para definir o intervalo de detecção (1.5 por padrão).
+            - df (pd.DataFrame): DataFrame com os dados dos ativos.
+            - threshold (float): Multiplicador para definir o intervalo de detecção de outliers (1.5 por padrão).
 
         Retorna:
-            - Um DataFrame com a contagem de outliers para cada coluna.
+            - pd.DataFrame: DataFrame com a contagem de outliers para cada coluna.
         """
         outliers = pd.DataFrame(index=df.columns, columns=['Outliers'])
 
@@ -59,29 +96,47 @@ class DataAnalysis:
     @staticmethod
     def annual_returns(df):
         """
-        Calcula o retorno anual para cada ativo.
+        Calcula o retorno anual para cada ativo com base nos preços ajustados.
 
-        Retorna um DataFrame com os retornos anuais em porcentagem.
+        Parâmetros:
+            - df (pd.DataFrame): DataFrame com os preços ajustados dos ativos.
+
+        Retorna:
+            - pd.DataFrame: DataFrame com os retornos anuais em porcentagem.
         """
         return df.resample('YE').last().pct_change() * 100
 
     @staticmethod
     def save_clean_data(df, file_name='asset_data_cleaner.csv'):
-        """Salva o DataFrame limpo no diretório de saída."""
+        """
+        Salva o DataFrame limpo no diretório de saída especificado no arquivo de configuração.
+
+        Parâmetros:
+            - df (pd.DataFrame): DataFrame limpo a ser salvo.
+            - file_name (str): Nome do arquivo de saída (padrão: 'asset_data_cleaner.csv').
+        """
         df.to_csv(f'{OUTPUT_DIR}/{file_name}')
 
     @staticmethod
     def analyze_and_clean_data(file_path):
         """
-        Realiza análise completa e limpeza dos dados.
+        Realiza uma análise completa e limpeza dos dados dos ativos financeiros.
 
-        - Carrega os dados.
-        - Realiza análise preliminar (dimensões, estatísticas, dados faltantes, outliers).
-        - Calcula os retornos anuais.
-        - Salva os dados limpos.
+        Este método realiza as seguintes operações:
+        - Carrega os dados de ativos de um arquivo CSV.
+        - Calcula as dimensões do DataFrame.
+        - Gera estatísticas descritivas básicas.
+        - Identifica dados faltantes.
+        - Detecta outliers usando o método IQR.
+        - Calcula retornos anuais.
+        - Realiza interpolação para preencher dados faltantes.
+        - Salva o DataFrame limpo em um arquivo CSV.
+
+        Parâmetros:
+            - file_path (str): Caminho do arquivo CSV de entrada.
 
         Retorna:
-            - Um dicionário com os resultados da análise preliminar e tabela de retornos anuais.
+            - dict: Dicionário com as métricas de análise preliminar e a tabela de retornos anuais.
         """
         # Carregar dados
         df = DataAnalysis.load_data(file_path)
@@ -91,16 +146,15 @@ class DataAnalysis:
             'Dimensions': DataAnalysis.data_dimensions(df),
             'Descriptive Statistics': DataAnalysis.descriptive_statistics(df),
             'Missing Data (%)': DataAnalysis.missing_data(df),
-            # Usando o método IQR para outliers
             'Outliers Count': DataAnalysis.identify_outliers_iqr(df),
             'Annual Returns (%)': DataAnalysis.annual_returns(df)
         }
 
-        # Limpeza de dados (exemplo: interpolação para dados faltantes)
-        df.ffill(inplace=True)
-        df.bfill(inplace=True)
+        # Limpeza de dados (exemplo: preenchimento de dados faltantes)
+        df.ffill(inplace=True)  # Preenchimento forward
+        df.bfill(inplace=True)  # Preenchimento backward para dados restantes
 
         # Salvar dados limpos
         DataAnalysis.save_clean_data(df)
 
-        return analysis  # Retorna o dicionário de análise, mas não imprime no terminal
+        return analysis  # Retorna o dicionário de análise para uso posterior

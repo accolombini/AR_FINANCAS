@@ -1,25 +1,31 @@
 # BP_mod2_main_pipeline.py
+# Pipeline principal para o Módulo 2 - Modelagem de Curto Prazo
 
 import os
-# Importando o módulo de treinamento de modelo de curto prazo
+# Importa o módulo de treinamento do modelo de curto prazo
 import BP_mod2_model_training
 
 
 def main():
     """
-    Pipeline principal para o Módulo 2 - Modelagem de Curto e Longo Prazo.
+    Pipeline principal para o Módulo 2 - Modelagem e Treinamento de Modelos.
+    Este pipeline organiza o fluxo de trabalho para criar, treinar e validar modelos de previsão.
     """
-    # Verificar se o diretório de modelos existe, se não, cria-lo
+    # Diretório para salvar os modelos treinados
     model_dir = "BackPython/MODELS/"
     if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
+        os.makedirs(model_dir)  # Cria o diretório se não existir
+        print(f"Diretório criado: {model_dir}")
 
-    # Executar o treinamento e validação do modelo de curto prazo
-    print("Iniciando o treinamento do modelo de curto prazo...")
-    BP_mod2_model_training.main()  # Chama a função principal do módulo de treinamento
+    # Treinamento do modelo de curto prazo (Random Forest)
+    print("Iniciando o treinamento do modelo de curto prazo (Random Forest)...")
+    BP_mod2_model_training.main()  # Executa o treinamento do modelo
 
-    # Aqui, futuramente, vamos adicionar a modelagem de longo prazo
+    # Mensagem indicando conclusão do pipeline de curto prazo
     print("Treinamento e validação do modelo de curto prazo concluídos.")
+
+    # Espaço reservado para modelagem de longo prazo
+    # print("Modelagem de longo prazo será adicionada futuramente.")
 
 
 if __name__ == "__main__":
