@@ -1,87 +1,90 @@
 # BP_mod2_model_training.py
-# Módulo para treinamento de um modelo de Random Forest com dados financeiros de curto prazo
+# Gera modelos para análise utilizando o Algoritmo Random Forest
+
+# Importar bibliotecas necessárias
 
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-import joblib
+from sklearn.model_selection import train_test_split
 
-# Configuração de diretórios e nomes de arquivos
+# Configuração de diretórios e arquivos
 DATA_DIR = "BackPython/DADOS/"
-MODEL_DIR = "BackPython/MODELS/"
-# Nome do arquivo onde o modelo será salvo
-MODEL_NAME = "short_term_rf_model.pkl"
-# Arquivo para salvar previsões de validação
-PREDICTIONS_FILE = f"{DATA_DIR}/y_pred_rf.csv"
+MODEL_NAME = "X_random_forest.csv"
+PREDICTIONS_FILE = f"{DATA_DIR}/y_random_forest.csv"
 
 
-def load_data():
+def load_and_prepare_data():
     """
-    Carrega os conjuntos de dados para treino e validação a partir dos arquivos CSV.
-
-    Retorna:
-        - X_train, y_train: Features e target para o treinamento
-        - X_val, y_val: Features e target para a validação
+    Carrega e prepara os dados para o modelo Random Forest.
+    Divide os dados em treino, validação e teste.
     """
-    X_train = pd.read_csv(f"{DATA_DIR}/X_train.csv", index_col=0)
-    y_train = pd.read_csv(f"{DATA_DIR}/y_train.csv", index_col=0)
-    X_val = pd.read_csv(f"{DATA_DIR}/X_val.csv", index_col=0)
-    y_val = pd.read_csv(f"{DATA_DIR}/y_val.csv", index_col=0)
+    # Carregar o arquivo gerado pelo pipeline 1
+    file_path = f"{DATA_DIR}/asset_data_cleaner.csv"
+    print(f"Carregando dados de: {file_path}")
+    df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+
+    # Definir a coluna de destino (^BVSP) e as features
+    target_column = '^BVSP'
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    # Dividir os dados em treino, validação e teste
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X, y, test_size=0.3, random_state=42
+    )
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp, test_size=0.5, random_state=42
+    )
 
     return X_train, y_train, X_val, y_val
 
 
 def train_model(X_train, y_train, X_val, y_val):
     """
-    Treina um modelo de Random Forest e avalia seu desempenho no conjunto de validação.
-
-    Parâmetros:
-        - X_train, y_train: Dados de treino
-        - X_val, y_val: Dados de validação
-
-    Salva:
-        - O modelo treinado em um arquivo
-        - As previsões do conjunto de validação em um CSV para análise no dashboard
+    Treina um modelo de Random Forest para o curto prazo e valida-o.
     """
-    print("Iniciando o treinamento do modelo de Random Forest...")
+    print("Iniciando o treinamento do modelo de curto prazo...")
 
-    # Instancia e treina o modelo de Random Forest
+    # Instanciar o modelo
     model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train.values.ravel())
 
-    # Realiza previsões no conjunto de validação
+    # Treinamento do modelo
+    model.fit(X_train, y_train)
+
+    # Predição no conjunto de validação
     y_pred_val = model.predict(X_val)
 
-    # Calcula métricas de desempenho no conjunto de validação
+    # Avaliação do modelo
     mse = mean_squared_error(y_val, y_pred_val)
     mae = mean_absolute_error(y_val, y_pred_val)
     r2 = r2_score(y_val, y_pred_val)
 
-    # Exibe as métricas para avaliação do modelo
     print(f"Erro Médio Quadrado (MSE) na validação: {mse}")
     print(f"Erro Médio Absoluto (MAE) na validação: {mae}")
-    print(f"Coeficiente de Determinação (R²) na validação: {r2}")
+    print(f"R² na validação: {r2}")
 
-    # Salva o modelo treinado para uso posterior
-    joblib.dump(model, f"{MODEL_DIR}/{MODEL_NAME}")
-    print(f"Modelo salvo em {MODEL_DIR}/{MODEL_NAME}")
+    # Salvar o conjunto de treino em CSV como solicitado
+    X_train.to_csv(f"{DATA_DIR}/{MODEL_NAME}")
+    y_train.to_csv(f"{DATA_DIR}/y_train_random_forest.csv")
+    print(f"Conjunto de treino salvo em {
+          DATA_DIR}/{MODEL_NAME} e y_train_random_forest.csv")
 
-    # Salva as previsões do conjunto de validação em um arquivo CSV
-    y_pred_df = pd.DataFrame(y_pred_val, columns=[
-                             "Predicted"], index=y_val.index)
+    # Salvar as previsões no conjunto de validação para uso no dashboard
+    y_pred_df = pd.DataFrame({'Predicted': y_pred_val}, index=y_val.index)
     y_pred_df.to_csv(PREDICTIONS_FILE)
     print(f"Previsões do conjunto de validação salvas em {PREDICTIONS_FILE}")
 
 
 def main():
     """
-    Função principal para execução do treinamento do modelo.
+    Função principal para o treinamento do modelo de curto prazo.
     """
-    # Carrega os dados de treino e validação
-    X_train, y_train, X_val, y_val = load_data()
+    # Carrega e prepara os dados
+    X_train, y_train, X_val, y_val = load_and_prepare_data()
 
-    # Executa o treinamento e validação do modelo
+    # Treina e valida o modelo
     train_model(X_train, y_train, X_val, y_val)
 
 

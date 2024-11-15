@@ -7,38 +7,48 @@ import pandas as pd
 class FeatureEngineering:
     """
     Classe para calcular indicadores essenciais em dados de ativos financeiros.
-    Essa classe fornece métodos para calcular retornos diários, médias móveis e volatilidade.
+    Inclui métodos para calcular retornos diários, médias móveis e volatilidade.
     """
 
     @staticmethod
-    def add_essential_features(df, assets):
+    def add_essential_features(df, assets, short_window=30, long_window=180):
         """
         Adiciona retornos diários, médias móveis e volatilidade ao DataFrame de preços de ativos.
 
         Parâmetros:
             - df (pd.DataFrame): DataFrame contendo os preços dos ativos financeiros.
             - assets (list): Lista de ativos (colunas do DataFrame) para os quais os indicadores serão calculados.
+            - short_window (int): Tamanho da janela para cálculos de curto prazo (ex: 30 dias).
+            - long_window (int): Tamanho da janela para cálculos de longo prazo (ex: 180 dias).
 
         Retorna:
             - pd.DataFrame: DataFrame original com os novos indicadores essenciais adicionados.
         """
         for asset in assets:
+            if asset not in df.columns:
+                print(f"Aviso: O ativo '{
+                      asset}' não foi encontrado no DataFrame. Verifique o nome da coluna.")
+                continue
+
             # Calcula o retorno diário do ativo
-            df[f'{asset}_returns'] = df[asset].pct_change(fill_method=None)
+            df[f'{asset}_returns'] = df[asset].pct_change()
 
-            # Calcula a média móvel de 30 dias (curto prazo)
-            df[f'{asset}_ma_30'] = df[asset].rolling(window=30).mean()
-            # Calcula a volatilidade de 30 dias
-            df[f'{asset}_volatility_30'] = df[asset].rolling(window=30).std()
+            # Indicadores de curto prazo (ex: média móvel e volatilidade de 30 dias)
+            df[f'{asset}_ma_{short_window}'] = df[asset].rolling(
+                window=short_window).mean()
+            df[f'{asset}_volatility_{short_window}'] = df[asset].rolling(
+                window=short_window).std()
 
-            # Calcula a média móvel de 180 dias (longo prazo)
-            df[f'{asset}_ma_180'] = df[asset].rolling(window=180).mean()
-            # Calcula a volatilidade de 180 dias
-            df[f'{asset}_volatility_180'] = df[asset].rolling(window=180).std()
+            # Indicadores de longo prazo (ex: média móvel e volatilidade de 180 dias)
+            df[f'{asset}_ma_{long_window}'] = df[asset].rolling(
+                window=long_window).mean()
+            df[f'{asset}_volatility_{long_window}'] = df[asset].rolling(
+                window=long_window).std()
 
-        # Tratamento de valores ausentes (resultantes dos cálculos de indicadores)
-        df.ffill(inplace=True)  # Preenchimento forward para valores ausentes
-        # Preenchimento backward para quaisquer valores restantes
-        df.bfill(inplace=True)
+        # Tratamento de valores ausentes resultantes dos cálculos de indicadores
+        if df.isnull().values.any():  # Verifica se há valores ausentes antes de preencher
+            df.ffill(inplace=True)  # Preenchimento forward
+            # Preenchimento backward para valores restantes
+            df.bfill(inplace=True)
 
         return df

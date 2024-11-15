@@ -14,7 +14,11 @@ from BP_mod1_config import OUTPUT_DIR
 
 def load_data(file_path):
     """Carrega o arquivo de dados dos ativos financeiros a partir de um caminho especificado."""
-    return pd.read_csv(file_path, index_col=0, parse_dates=True)
+    try:
+        return pd.read_csv(file_path, index_col=0, parse_dates=True)
+    except FileNotFoundError:
+        print(f"Erro: O arquivo '{file_path}' não foi encontrado.")
+        return None
 
 # Função para normalizar os dados de ativos para o intervalo [0, 1]
 
@@ -59,15 +63,22 @@ def create_asset_graph_with_benchmark(asset_data, assets):
 def main():
     """Inicializa o aplicativo Dash e exibe o dashboard de visualização de ativos e indicadores essenciais."""
 
-    # Inicializando o aplicativo Dash
-    app = Dash(__name__)
+    # Definindo o caminho completo para o arquivo de dados
+    file_path = os.path.join(OUTPUT_DIR, 'asset_data_cleaner.csv')
+    print(f"Carregando dados de: {file_path}")
 
-    # Carregar e analisar os dados
-    file_path = f'{OUTPUT_DIR}/asset_data_cleaner.csv'
+    # Carregar os dados dos ativos
     asset_data = load_data(file_path)
-    analysis_results = DataAnalysis.analyze_and_clean_data(
-        file_path)  # Gera análise preliminar
-    asset_data_normalized = normalize_data(asset_data)  # Normaliza os dados
+    if asset_data is None:
+        print("Erro: Não foi possível carregar os dados. Certifique-se de que o arquivo existe.")
+        return
+
+    # Análise preliminar e normalização dos dados
+    analysis_results = DataAnalysis.analyze_and_clean_data(file_path)
+    asset_data_normalized = normalize_data(asset_data)
+
+    # Configurar o aplicativo Dash
+    app = Dash(__name__)
 
     # Criar gráficos normalizados com destaque no IBOVESPA
     assets = list(asset_data.columns)
@@ -127,9 +138,11 @@ def main():
         )
     ])
 
-    # Rodar o aplicativo Dash no modo debug
-    app.run_server(debug=True)
+    # Iniciar o servidor do Dash no endereço e porta especificados
+    print("Dashboard disponível em http://127.0.0.1:8050/")
+    app.run_server(debug=True, host='127.0.0.1', port=8050)
 
 
+# Executa o dashboard se o script for executado diretamente
 if __name__ == "__main__":
     main()

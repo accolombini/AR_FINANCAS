@@ -4,6 +4,7 @@
 # BP_mod1_data_analysis.py
 # Módulo para análise preliminar dos dados, incluindo estatísticas descritivas e cálculo de retornos anualizados
 
+import os
 import pandas as pd
 import numpy as np
 from BP_mod1_config import OUTPUT_DIR
@@ -115,6 +116,9 @@ class DataAnalysis:
             - df (pd.DataFrame): DataFrame limpo a ser salvo.
             - file_name (str): Nome do arquivo de saída (padrão: 'asset_data_cleaner.csv').
         """
+        # Garante que o diretório de saída exista
+        if not os.path.exists(OUTPUT_DIR):
+            os.makedirs(OUTPUT_DIR)
         df.to_csv(f'{OUTPUT_DIR}/{file_name}')
 
     @staticmethod

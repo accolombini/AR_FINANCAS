@@ -9,9 +9,10 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Carregar dados de validação e previsões
 validation_data = pd.read_csv(
-    "BackPython/DADOS/y_val.csv", index_col=0, parse_dates=True)
+    "/Users/accol/Library/Mobile Documents/com~apple~CloudDocs/PROJETOS/ar_financas/BackPython/DADOS/y_val.csv", index_col=0, parse_dates=True)
 predicted_data = pd.read_csv(
-    "BackPython/DADOS/y_pred.csv", index_col=0, parse_dates=True)
+    "/Users/accol/Library/Mobile Documents/com~apple~CloudDocs/PROJETOS/ar_financas/BackPython/DADOS/y_pred.csv", index_col=0, parse_dates=True)
+
 
 # Garantir que os índices sejam do tipo DatetimeIndex
 if not isinstance(validation_data.index, pd.DatetimeIndex):
@@ -105,12 +106,13 @@ app.layout = html.Div(style={'backgroundColor': '#1f1f1f'}, children=[
     html.Div([
         html.H2("Métricas de Avaliação", style={'color': '#ffffff'}),
         html.P(f"Erro Médio Absoluto (MAE): {
-               mae:.2f}", style={'color': '#ffffff'}),
+            mae:.2f}", style={'color': '#ffffff'}),
         html.P(f"Erro Médio Quadrado (MSE): {
-               mse:.2f}", style={'color': '#ffffff'}),
+            mse:.2f}", style={'color': '#ffffff'}),
         html.P(f"Coeficiente de Determinação (R²): {
-               r2:.2f}", style={'color': '#ffffff'})
+            r2:.2f}", style={'color': '#ffffff'})
     ], style={'textAlign': 'center', 'marginBottom': '20px'}),
+
 
     # Tabela de comparação para os últimos dois meses
     html.H2(
