@@ -1,4 +1,8 @@
+# Dashboard para análise de desempenho de modelos de curto prazo usando Dash e Plotly
+
 # BP_mod3_dashboard.py
+# Importar bibliotecas necessárias``
+
 # Dashboard para análise de desempenho de modelos de curto prazo usando Dash e Plotly
 
 import pandas as pd
@@ -6,13 +10,25 @@ import numpy as np
 from dash import Dash, html, dcc
 import plotly.graph_objs as go
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import os
+
+# Configuração de diretórios e arquivos
+DATA_DIR = "BackPython/DADOS"
+validation_file_path = os.path.join(DATA_DIR, "y_random_forest.csv")
+predicted_file_path = os.path.join(DATA_DIR, "y_pred_rf.csv")
+
+# Verificar se os arquivos existem antes de carregar
+if not os.path.exists(validation_file_path) or not os.path.exists(predicted_file_path):
+    raise FileNotFoundError(
+        f"Arquivos necessários não encontrados em {
+            DATA_DIR}. Verifique os arquivos de validação e previsão."
+    )
 
 # Carregar dados de validação e previsões
 validation_data = pd.read_csv(
-    "/Users/accol/Library/Mobile Documents/com~apple~CloudDocs/PROJETOS/ar_financas/BackPython/DADOS/y_val.csv", index_col=0, parse_dates=True)
+    validation_file_path, index_col=0, parse_dates=True)
 predicted_data = pd.read_csv(
-    "/Users/accol/Library/Mobile Documents/com~apple~CloudDocs/PROJETOS/ar_financas/BackPython/DADOS/y_pred.csv", index_col=0, parse_dates=True)
-
+    predicted_file_path, index_col=0, parse_dates=True)
 
 # Garantir que os índices sejam do tipo DatetimeIndex
 if not isinstance(validation_data.index, pd.DatetimeIndex):
@@ -38,7 +54,16 @@ validation_data["Error %"] = (
 # Filtrar dados para os últimos dois meses
 last_date = validation_data.index.max()
 two_months_prior = last_date - pd.DateOffset(months=2)
-validation_period = validation_data.loc[two_months_prior:last_date]
+
+# Encontrar o intervalo válido no DataFrame
+validation_period = validation_data[
+    (validation_data.index >= two_months_prior) & (
+        validation_data.index <= last_date)
+]
+
+# Checar se validation_period contém dados
+if validation_period.empty:
+    raise ValueError("Os dados para os últimos dois meses estão vazios.")
 
 # Inicializar o aplicativo Dash
 app = Dash(__name__)
@@ -106,13 +131,12 @@ app.layout = html.Div(style={'backgroundColor': '#1f1f1f'}, children=[
     html.Div([
         html.H2("Métricas de Avaliação", style={'color': '#ffffff'}),
         html.P(f"Erro Médio Absoluto (MAE): {
-            mae:.2f}", style={'color': '#ffffff'}),
+               mae:.2f}", style={'color': '#ffffff'}),
         html.P(f"Erro Médio Quadrado (MSE): {
-            mse:.2f}", style={'color': '#ffffff'}),
+               mse:.2f}", style={'color': '#ffffff'}),
         html.P(f"Coeficiente de Determinação (R²): {
-            r2:.2f}", style={'color': '#ffffff'})
+               r2:.2f}", style={'color': '#ffffff'})
     ], style={'textAlign': 'center', 'marginBottom': '20px'}),
-
 
     # Tabela de comparação para os últimos dois meses
     html.H2(
@@ -155,4 +179,4 @@ app.layout = html.Div(style={'backgroundColor': '#1f1f1f'}, children=[
 
 # Executar o Dashboard
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=True, host="127.0.0.1", port=8050)

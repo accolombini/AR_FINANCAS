@@ -1,6 +1,7 @@
 # BP_mod1_config.py
 # Configurações do sistema para o Módulo 1: Coleta e Processamento de Dados
 
+import os
 from datetime import datetime
 
 # Lista de ativos para análise
@@ -19,7 +20,8 @@ END_DATE = datetime.today().strftime('%Y-%m-%d')
 
 # Diretório de saída para os arquivos processados
 # OUTPUT_DIR: Caminho onde os dados processados serão salvos em formato CSV ou outro desejado.
-OUTPUT_DIR = 'BackPython/DADOS'
+# Diretório de saída absoluto
+OUTPUT_DIR = os.path.abspath('BackPython/DADOS')
 
 # Flag para definir se o dashboard deve ser executado automaticamente após o processamento
 # RUN_DASHBOARD: Defina como True para executar o dashboard após o processamento dos dados.

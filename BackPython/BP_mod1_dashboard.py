@@ -1,15 +1,12 @@
 # BP_mod1_dashboard.py
-# Módulo para visualização dos resultados em um dashboard interativo com Dash
+# Dashboard para visualização interativa de dados financeiros processados usando Dash
 
-import os
-import pandas as pd
-from dash import Dash, dcc, html, dash_table
+from dash import Dash, html, dcc, dash_table
 import plotly.graph_objs as go
-from sklearn.preprocessing import MinMaxScaler
-from BP_mod1_data_analysis import DataAnalysis
+import pandas as pd
+import os
 from BP_mod1_config import OUTPUT_DIR
-
-# Função para carregar o arquivo de dados
+from sklearn.preprocessing import MinMaxScaler
 
 
 def load_data(file_path):
@@ -18,131 +15,114 @@ def load_data(file_path):
         return pd.read_csv(file_path, index_col=0, parse_dates=True)
     except FileNotFoundError:
         print(f"Erro: O arquivo '{file_path}' não foi encontrado.")
-        return None
-
-# Função para normalizar os dados de ativos para o intervalo [0, 1]
+        return pd.DataFrame()
 
 
 def normalize_data(df):
-    """Normaliza os dados para o intervalo [0, 1] usando MinMaxScaler para melhorar a comparabilidade nos gráficos."""
+    """Normaliza os dados para o intervalo [0, 1] usando MinMaxScaler."""
     scaler = MinMaxScaler()
-    df_normalized = pd.DataFrame(
-        scaler.fit_transform(df), columns=df.columns, index=df.index)
-    return df_normalized
-
-# Função para criar gráficos interativos dos ativos, com o índice IBOVESPA em destaque
+    return pd.DataFrame(scaler.fit_transform(df), columns=df.columns, index=df.index)
 
 
 def create_asset_graph_with_benchmark(asset_data, assets):
-    """
-    Cria gráficos de linha para cada ativo, com destaque no índice IBOVESPA.
-
-    Parâmetros:
-        - asset_data (DataFrame): Dados de preços dos ativos, normalizados.
-        - assets (list): Lista de ativos para visualização.
-
-    Retorna:
-        - Lista de objetos de gráfico (traces) para cada ativo.
-    """
+    """Cria gráficos de linha para cada ativo, com destaque no índice IBOVESPA."""
     graphs = []
     for asset in assets:
         trace = go.Scatter(
             x=asset_data.index,
             y=asset_data[asset],
-            mode='lines',
+            mode="lines",
             name=asset,
-            line=dict(width=4 if asset == '^BVSP' else 2,
-                      dash='dash' if asset == '^BVSP' else 'solid')  # Destaque no IBOVESPA
+            line=dict(width=4 if asset == "^BVSP" else 2,
+                      dash="dash" if asset == "^BVSP" else "solid")
         )
         graphs.append(trace)
     return graphs
 
-# Função principal para configurar e rodar o dashboard
 
+def start_dashboard():
+    """Inicializa e exibe o dashboard."""
+    print("Dashboard iniciado por start_dashboard")  # Log para verificar a execução
+    # Caminhos para os arquivos de dados
+    raw_data_path = os.path.join(OUTPUT_DIR, 'asset_data_raw.csv')
+    processed_data_path = os.path.join(OUTPUT_DIR, 'asset_data_cleaner.csv')
 
-def main():
-    """Inicializa o aplicativo Dash e exibe o dashboard de visualização de ativos e indicadores essenciais."""
+    # Carregar os dados
+    raw_data = load_data(raw_data_path)
+    processed_data = load_data(processed_data_path)
 
-    # Definindo o caminho completo para o arquivo de dados
-    file_path = os.path.join(OUTPUT_DIR, 'asset_data_cleaner.csv')
-    print(f"Carregando dados de: {file_path}")
-
-    # Carregar os dados dos ativos
-    asset_data = load_data(file_path)
-    if asset_data is None:
-        print("Erro: Não foi possível carregar os dados. Certifique-se de que o arquivo existe.")
+    # Verificação de integridade dos dados
+    if raw_data.empty or processed_data.empty:
+        print("Erro: Dados não encontrados ou inválidos.")
         return
 
-    # Análise preliminar e normalização dos dados
-    analysis_results = DataAnalysis.analyze_and_clean_data(file_path)
-    asset_data_normalized = normalize_data(asset_data)
+    # Normalizar os dados processados
+    normalized_data = normalize_data(processed_data)
 
     # Configurar o aplicativo Dash
     app = Dash(__name__)
 
     # Criar gráficos normalizados com destaque no IBOVESPA
-    assets = list(asset_data.columns)
-    asset_graphs = create_asset_graph_with_benchmark(
-        asset_data_normalized, assets)
+    assets = list(processed_data.columns)
+    asset_graphs = create_asset_graph_with_benchmark(normalized_data, assets)
 
-    # Layout do Dash com tabelas de análise e gráficos interativos
-    app.layout = html.Div([
-        html.H1("Visualização dos Ativos e Indicadores de Pré-processamento",
-                style={'textAlign': 'center'}),
+    # Layout do Dash
+    app.layout = html.Div(style={'backgroundColor': '#1f1f1f'}, children=[
+        html.H1("Dashboard de Visualização de Ativos Financeiros",
+                style={'textAlign': 'center', 'color': 'white'}),
 
-        # Tabela: Dimensões dos Dados
-        html.H2("Dimensões dos Dados"),
-        dash_table.DataTable(data=[{'Dimensões': f"{analysis_results['Dimensions'][0]} linhas, {
-                             analysis_results['Dimensions'][1]} colunas"}]),
-
-        # Tabela: Estatísticas Descritivas
-        html.H2("Estatísticas Descritivas"),
+        # Tabela: Estatísticas Descritivas dos Dados Brutos
+        html.H2("Estatísticas Descritivas - Dados Brutos",
+                style={'textAlign': 'center', 'color': 'white'}),
         dash_table.DataTable(
-            data=analysis_results['Descriptive Statistics'].reset_index().to_dict(
-                'records')
+            data=raw_data.describe().reset_index().to_dict('records'),
+            columns=[{"name": col, "id": col}
+                     for col in raw_data.describe().reset_index().columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center'},
+            style_header={
+                'backgroundColor': 'rgb(30, 30, 30)', 'color': 'white'},
+            style_data={
+                'backgroundColor': 'rgb(50, 50, 50)', 'color': 'white'},
         ),
 
-        # Tabela: Dados Faltantes (%)
-        html.H2("Dados Faltantes (%)"),
+        # Tabela: Estatísticas Descritivas dos Dados Processados
+        html.H2("Estatísticas Descritivas - Dados Processados",
+                style={'textAlign': 'center', 'color': 'white'}),
         dash_table.DataTable(
-            data=analysis_results['Missing Data (%)'].reset_index().to_dict(
-                'records')
+            data=processed_data.describe().reset_index().to_dict('records'),
+            columns=[{"name": col, "id": col}
+                     for col in processed_data.describe().reset_index().columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center'},
+            style_header={
+                'backgroundColor': 'rgb(30, 30, 30)', 'color': 'white'},
+            style_data={
+                'backgroundColor': 'rgb(50, 50, 50)', 'color': 'white'},
         ),
 
-        # Tabela: Outliers
-        html.H2("Contagem de Outliers"),
-        dash_table.DataTable(
-            data=analysis_results['Outliers Count'].reset_index().to_dict(
-                'records')
-        ),
-
-        # Tabela: Retornos Anuais (%)
-        html.H2("Retornos Anuais (%)"),
-        dash_table.DataTable(
-            data=analysis_results['Annual Returns (%)'].reset_index().to_dict(
-                'records')
-        ),
-
-        # Gráfico de preços dos ativos normalizados ao longo do tempo
-        html.H2("Preços dos Ativos ao Longo do Tempo (Normalizados)"),
+        # Gráfico: Preços dos Ativos Normalizados
+        html.H2("Preços dos Ativos Normalizados ao Longo do Tempo",
+                style={'textAlign': 'center', 'color': 'white'}),
         dcc.Graph(
             id='ativos-grafico',
             figure={
                 'data': asset_graphs,
                 'layout': go.Layout(
-                    title={'text': 'Preços dos Ativos Normalizados', 'x': 0.5},
+                    title="Preços Normalizados ao Longo do Tempo",
                     xaxis={'title': 'Data'},
-                    yaxis={'title': 'Valor Normalizado'}
+                    yaxis={'title': 'Valor Normalizado'},
+                    paper_bgcolor='#1f1f1f',
+                    plot_bgcolor='#1f1f1f',
+                    font=dict(color='white')
                 )
             }
         )
     ])
 
-    # Iniciar o servidor do Dash no endereço e porta especificados
     print("Dashboard disponível em http://127.0.0.1:8050/")
     app.run_server(debug=True, host='127.0.0.1', port=8050)
 
 
-# Executa o dashboard se o script for executado diretamente
-if __name__ == "__main__":
-    main()
+# Certifique-se de **não incluir nada aqui fora**!
+# Qualquer execução fora das funções precisa ser removida para evitar execuções duplicadas.

@@ -1,14 +1,16 @@
-# BP_mod1_data_collection.py
 # Módulo para a coleta de dados financeiros de ativos usando a biblioteca yfinance
+
+# BP_mod1_data_collection.py
+# Importa as bibliotecas necessárias
 
 import yfinance as yf
 import pandas as pd
+import os
 
 
 class DataCollector:
     """
-    Classe para coletar dados financeiros de ativos. Utiliza a API yfinance para
-    baixar dados históricos de fechamento ajustado de uma lista de ativos.
+    Classe para coletar dados financeiros de ativos usando a API yfinance.
     """
 
     @staticmethod
@@ -17,39 +19,49 @@ class DataCollector:
         Baixa os dados históricos de fechamento ajustado para uma lista de ativos.
 
         Parâmetros:
-            - assets (list): Lista de ativos (ex: ['AAPL', 'MSFT']). Cada ativo deve ser uma string que representa o símbolo do ativo na bolsa.
-            - start_date (str): Data inicial no formato 'AAAA-MM-DD' para a coleta dos dados.
-            - end_date (str): Data final no formato 'AAAA-MM-DD' para a coleta dos dados.
-            - save_to_csv (bool): Se True, salva os dados coletados em um arquivo CSV. O caminho é especificado em `output_path`.
-            - output_path (str): Caminho para o arquivo CSV onde os dados serão salvos (usado apenas se `save_to_csv=True`).
+            - assets (list): Lista de ativos (ex: ['VALE3.SA', 'PETR4.SA']).
+            - start_date (str): Data inicial no formato 'AAAA-MM-DD'.
+            - end_date (str): Data final no formato 'AAAA-MM-DD'.
+            - save_to_csv (bool): Se True, salva os dados coletados em CSV.
+            - output_path (str): Caminho para salvar os dados (se save_to_csv=True).
 
         Retorna:
-            - pd.DataFrame: DataFrame com os preços ajustados de fechamento dos ativos no intervalo de tempo especificado.
-              O índice do DataFrame é a data, e cada coluna representa um ativo da lista `assets`.
+            - pd.DataFrame: DataFrame com os preços ajustados de fechamento dos ativos.
         """
         try:
-            # Baixa os dados dos ativos para o intervalo especificado
-            df = yf.download(assets, start=start_date, end=end_date)
+            # Baixar os dados para todos os ativos
+            print(f"Coletando dados de {len(assets)} ativos...")
+            df = yf.download(assets, start=start_date,
+                             end=end_date, group_by='ticker')
 
-            # Verificar se a coluna 'Adj Close' está presente nos dados retornados
-            if 'Adj Close' not in df:
-                raise ValueError(
-                    "Dados retornados não contêm a coluna 'Adj Close' esperada.")
+            # Garantir que todos os ativos estão no DataFrame
+            missing_assets = [
+                asset for asset in assets if asset not in df.columns.levels[0]]
+            if missing_assets:
+                print(f"Aviso: Não foi possível coletar dados para os seguintes ativos: {
+                      missing_assets}")
 
-            # Seleciona apenas a coluna 'Adj Close' para análise
-            df = df['Adj Close']
+            # Filtrar apenas a coluna 'Adj Close'
+            adj_close_data = {}
+            for asset in assets:
+                try:
+                    adj_close_data[asset] = df[asset]['Adj Close']
+                except KeyError:
+                    adj_close_data[asset] = None
 
-            # Salvar os dados em CSV se a opção estiver ativada
+            # Criar DataFrame consolidado
+            final_df = pd.DataFrame(adj_close_data)
+
+            # Salvar os dados, se solicitado
             if save_to_csv:
-                # Garante que o diretório de saída exista
                 output_dir = os.path.dirname(output_path)
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
-                df.to_csv(output_path)
-                print(f"Dados salvos em: {output_path}")
+                final_df.to_csv(output_path)
+                print(f"Dados salvos em {output_path}")
 
-            return df
+            return final_df
 
         except Exception as e:
             print(f"Erro ao coletar dados dos ativos: {e}")
-            return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
+            return pd.DataFrame()

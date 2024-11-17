@@ -5,26 +5,53 @@ import os
 # Importa o módulo de treinamento do modelo de curto prazo
 import BP_mod2_model_training
 
+# Configuração de diretórios
+MODEL_DIR = "BackPython/MODELS/"
+
+
+def setup_directories():
+    """
+    Configura os diretórios necessários para o pipeline.
+    Cria o diretório para salvar os modelos, se não existir.
+    """
+    if not os.path.exists(MODEL_DIR):
+        os.makedirs(MODEL_DIR)
+        print(f"Diretório criado: {MODEL_DIR}")
+    else:
+        print(f"Diretório já existente: {MODEL_DIR}")
+
+
+def train_short_term_model():
+    """
+    Treina o modelo de curto prazo usando o módulo de treinamento.
+    """
+    print("Iniciando o treinamento do modelo de curto prazo (Random Forest)...")
+    try:
+        BP_mod2_model_training.main()
+        print("Treinamento e validação do modelo de curto prazo concluídos.")
+    except Exception as e:
+        print(f"Erro durante o treinamento do modelo de curto prazo: {e}")
+        raise
+
 
 def main():
     """
     Pipeline principal para o Módulo 2 - Modelagem e Treinamento de Modelos.
-    Este pipeline organiza o fluxo de trabalho para criar, treinar e validar modelos de previsão.
     """
-    # Diretório para salvar os modelos treinados
-    model_dir = "BackPython/MODELS/"
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)  # Cria o diretório se não existir
-        print(f"Diretório criado: {model_dir}")
+    print("Executando o Pipeline do Módulo 2 - Modelagem de Curto Prazo...")
 
-    # Treinamento do modelo de curto prazo (Random Forest)
-    print("Iniciando o treinamento do modelo de curto prazo (Random Forest)...")
-    BP_mod2_model_training.main()  # Executa o treinamento do modelo
+    # Configurar diretórios
+    setup_directories()
 
-    # Mensagem indicando conclusão do pipeline de curto prazo
-    print("Treinamento e validação do modelo de curto prazo concluídos.")
+    # Treinamento do modelo de curto prazo
+    try:
+        train_short_term_model()
+    except Exception as e:
+        print(f"Erro no Pipeline do Módulo 2: {e}")
+    else:
+        print("Pipeline do Módulo 2 executado com sucesso.")
 
-    # Espaço reservado para modelagem de longo prazo
+    # Placeholder para modelagem de longo prazo
     # print("Modelagem de longo prazo será adicionada futuramente.")
 
 
