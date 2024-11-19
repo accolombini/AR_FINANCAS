@@ -1,6 +1,9 @@
 # BP_mod1_dashboard.py
 # Dashboard para visualização interativa de dados financeiros processados usando Dash
 
+# BP_mod1_dashboard.py
+# Dashboard para visualização interativa de dados financeiros processados usando Dash
+
 from dash import Dash, html, dcc, dash_table
 import plotly.graph_objs as go
 import pandas as pd
@@ -12,6 +15,7 @@ from sklearn.preprocessing import MinMaxScaler
 def load_data(file_path):
     """Carrega o arquivo de dados dos ativos financeiros a partir de um caminho especificado."""
     try:
+        print(f"[LOG] Tentando carregar o arquivo: {file_path}")
         return pd.read_csv(file_path, index_col=0, parse_dates=True)
     except FileNotFoundError:
         print(f"Erro: O arquivo '{file_path}' não foi encontrado.")
@@ -20,29 +24,48 @@ def load_data(file_path):
 
 def normalize_data(df):
     """Normaliza os dados para o intervalo [0, 1] usando MinMaxScaler."""
+    if df.empty:
+        print("[LOG] DataFrame está vazio. Não foi possível normalizar os dados.")
+        return df
     scaler = MinMaxScaler()
-    return pd.DataFrame(scaler.fit_transform(df), columns=df.columns, index=df.index)
+    try:
+        normalized_df = pd.DataFrame(
+            scaler.fit_transform(df), columns=df.columns, index=df.index
+        )
+        print("[LOG] Dados normalizados com sucesso.")
+        return normalized_df
+    except ValueError as e:
+        print(f"Erro ao normalizar os dados: {e}")
+        return pd.DataFrame()
 
 
 def create_asset_graph_with_benchmark(asset_data, assets):
     """Cria gráficos de linha para cada ativo, com destaque no índice IBOVESPA."""
     graphs = []
-    for asset in assets:
-        trace = go.Scatter(
-            x=asset_data.index,
-            y=asset_data[asset],
-            mode="lines",
-            name=asset,
-            line=dict(width=4 if asset == "^BVSP" else 2,
-                      dash="dash" if asset == "^BVSP" else "solid")
-        )
-        graphs.append(trace)
-    return graphs
+    try:
+        for asset in assets:
+            trace = go.Scatter(
+                x=asset_data.index,
+                y=asset_data[asset],
+                mode="lines",
+                name=asset,
+                line=dict(
+                    width=4 if asset == "^BVSP" else 2,
+                    dash="dash" if asset == "^BVSP" else "solid"
+                )
+            )
+            graphs.append(trace)
+        print("[LOG] Gráficos criados com sucesso.")
+        return graphs
+    except Exception as e:
+        print(f"Erro ao criar gráficos: {e}")
+        return []
 
 
 def start_dashboard():
     """Inicializa e exibe o dashboard."""
-    print("Dashboard iniciado por start_dashboard")  # Log para verificar a execução
+    print("[LOG] Inicializando o dashboard...")
+
     # Caminhos para os arquivos de dados
     raw_data_path = os.path.join(OUTPUT_DIR, 'asset_data_raw.csv')
     processed_data_path = os.path.join(OUTPUT_DIR, 'asset_data_cleaner.csv')
@@ -53,16 +76,16 @@ def start_dashboard():
 
     # Verificação de integridade dos dados
     if raw_data.empty or processed_data.empty:
-        print("Erro: Dados não encontrados ou inválidos.")
+        print("Erro: Dados não encontrados ou inválidos. O dashboard não será iniciado.")
         return
 
     # Normalizar os dados processados
+    print("[LOG] Normalizando os dados.")
     normalized_data = normalize_data(processed_data)
 
     # Configurar o aplicativo Dash
+    print("[LOG] Criando gráficos para os ativos.")
     app = Dash(__name__)
-
-    # Criar gráficos normalizados com destaque no IBOVESPA
     assets = list(processed_data.columns)
     asset_graphs = create_asset_graph_with_benchmark(normalized_data, assets)
 
@@ -120,9 +143,9 @@ def start_dashboard():
         )
     ])
 
-    print("Dashboard disponível em http://127.0.0.1:8050/")
-    app.run_server(debug=True, host='127.0.0.1', port=8050)
+    print("[LOG] Dashboard disponível em http://127.0.0.1:8050/")
+    app.run_server(debug=False, host='127.0.0.1', port=8050)
 
 
-# Certifique-se de **não incluir nada aqui fora**!
-# Qualquer execução fora das funções precisa ser removida para evitar execuções duplicadas.
+# GARANTIA: Nenhum código fora de funções
+# Certifique-se de que este módulo serve apenas para importar funções

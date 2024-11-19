@@ -1,59 +1,51 @@
+'''
+        MSE (Erro Quadrático Médio): Mede a média dos quadrados das diferenças entre valores previstos e reais.
+        MAE (Erro Absoluto Médio): Mede o erro médio absoluto entre os valores previstos e reais.
+        MAE como Percentual da Média: Relaciona o erro absoluto médio à média dos valores reais.
+'''
 # BP_mod2_main_pipeline.py
 # Pipeline principal para o Módulo 2 - Modelagem de Curto Prazo
 
-import os
-# Importa o módulo de treinamento do modelo de curto prazo
-import BP_mod2_model_training
-
-# Configuração de diretórios
-MODEL_DIR = "BackPython/MODELS/"
+from BP_mod2_data_preparation import preprocess_for_lstm_with_paths
+from BP_mod2_model_training import train_and_evaluate_lstm
 
 
-def setup_directories():
+def run_pipeline(data_dir='BackPython/DADOS/', target_column='^BVSP', sequence_length=30, test_months=2):
     """
-    Configura os diretórios necessários para o pipeline.
-    Cria o diretório para salvar os modelos, se não existir.
+    Executa o pipeline principal com saídas informativas consolidadas.
     """
-    if not os.path.exists(MODEL_DIR):
-        os.makedirs(MODEL_DIR)
-        print(f"Diretório criado: {MODEL_DIR}")
-    else:
-        print(f"Diretório já existente: {MODEL_DIR}")
+    print("[INFO] Iniciando o pipeline principal...")
 
+    # Etapa 1: Pré-processamento
+    print("[INFO] Etapa 1: Pré-processamento dos dados...")
+    preprocess_for_lstm_with_paths(
+        input_file=f"{data_dir}/asset_data_cleaner.csv",
+        target_column=target_column,
+        test_months=test_months,
+        sequence_length=sequence_length,
+        output_dir=data_dir
+    )
 
-def train_short_term_model():
-    """
-    Treina o modelo de curto prazo usando o módulo de treinamento.
-    """
-    print("Iniciando o treinamento do modelo de curto prazo (Random Forest)...")
-    try:
-        BP_mod2_model_training.main()
-        print("Treinamento e validação do modelo de curto prazo concluídos.")
-    except Exception as e:
-        print(f"Erro durante o treinamento do modelo de curto prazo: {e}")
-        raise
+    # Etapa 2: Treinamento e Avaliação
+    print("[INFO] Etapa 2: Treinamento e avaliação do modelo LSTM...")
+    metrics = train_and_evaluate_lstm(
+        data_dir=data_dir,
+        model_output=f"{data_dir}/lstm_model.keras"
+    )
 
+    # Imprimir métricas consolidadas
+    print("[INFO] Pipeline concluído. Métricas finais:")
+    for key, value in metrics.items():
+        print(f"  {key}: {value}")
 
-def main():
-    """
-    Pipeline principal para o Módulo 2 - Modelagem e Treinamento de Modelos.
-    """
-    print("Executando o Pipeline do Módulo 2 - Modelagem de Curto Prazo...")
-
-    # Configurar diretórios
-    setup_directories()
-
-    # Treinamento do modelo de curto prazo
-    try:
-        train_short_term_model()
-    except Exception as e:
-        print(f"Erro no Pipeline do Módulo 2: {e}")
-    else:
-        print("Pipeline do Módulo 2 executado com sucesso.")
-
-    # Placeholder para modelagem de longo prazo
-    # print("Modelagem de longo prazo será adicionada futuramente.")
+    return metrics
 
 
 if __name__ == "__main__":
-    main()
+    metrics = run_pipeline(
+        data_dir="BackPython/DADOS/",
+        target_column="^BVSP",
+        sequence_length=30,
+        test_months=2
+    )
+    print("[INFO] Execução completa.")

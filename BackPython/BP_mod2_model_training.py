@@ -1,93 +1,72 @@
 # BP_mod2_model_training.py
 # Treinamento de modelos de curto prazo usando Random Forest
 
-import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
-
-# Configuração de diretórios e arquivos
-DATA_DIR = "BackPython/DADOS"
-OUTPUT_X_FILE = f"{DATA_DIR}/X_random_forest.csv"
-OUTPUT_Y_TRAIN_FILE = f"{DATA_DIR}/y_train_random_forest.csv"
-PREDICTIONS_FILE = f"{DATA_DIR}/y_pred_rf.csv"
-INPUT_FILE = f"{DATA_DIR}/asset_data_cleaner.csv"
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
+import os
 
 
-def load_and_prepare_data():
+def build_lstm_model(input_shape):
     """
-    Carrega e prepara os dados para o modelo Random Forest.
-    Divide os dados em treino, validação e teste.
+    Constrói o modelo LSTM com Dropout para regularização.
     """
-    print(f"Carregando dados de: {INPUT_FILE}")
-    df = pd.read_csv(INPUT_FILE, index_col=0, parse_dates=True)
+    model = Sequential()
+    model.add(Input(shape=input_shape))  # Uso explícito de Input
+    model.add(LSTM(units=50, return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units=50, return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(units=1))
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
+    return model
 
-    # Verificar se o DataFrame foi carregado corretamente
-    if df.empty:
-        raise ValueError(
-            "O arquivo de entrada está vazio ou não foi carregado corretamente.")
 
-    # Definir a coluna de destino (^BVSP) e as features
-    target_column = "^BVSP"
-    if target_column not in df.columns:
-        raise KeyError(f"A coluna alvo '{
-                       target_column}' não foi encontrada nos dados.")
+def train_and_evaluate_lstm(data_dir='BackPython/DADOS/', model_output='BackPython/DADOS/lstm_model.keras'):
+    """
+    Treina e avalia o modelo LSTM, retornando métricas sem imprimir diretamente.
+    """
+    print("[INFO] Carregando os dados pré-processados...")
+    X_train = np.load(os.path.join(data_dir, "X_train.npy"))
+    y_train = np.load(os.path.join(data_dir, "y_train.npy"))
+    X_val = np.load(os.path.join(data_dir, "X_val.npy"))
+    y_val = np.load(os.path.join(data_dir, "y_val.npy"))
+    X_test = np.load(os.path.join(data_dir, "X_test.npy"))
+    y_test = np.load(os.path.join(data_dir, "y_test.npy"))
 
-    X = df.drop(columns=[target_column])
-    y = df[target_column]
+    # Construir o modelo
+    print("[INFO] Construindo o modelo LSTM...")
+    input_shape = (X_train.shape[1], X_train.shape[2])  # (timesteps, features)
+    model = build_lstm_model(input_shape)
 
-    # Dividir os dados em treino, validação e teste
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y, test_size=0.3, random_state=42, shuffle=False
+    # Treinar o modelo
+    print("[INFO] Iniciando o treinamento...")
+    model.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        epochs=30,
+        batch_size=32,
+        verbose=1
     )
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.5, random_state=42, shuffle=False
-    )
 
-    return X_train, y_train, X_val, y_val
+    # Avaliar no conjunto de teste
+    print("[INFO] Avaliando o modelo no conjunto de teste...")
+    test_loss, test_mae = model.evaluate(X_test, y_test, verbose=0)
 
+    # Calcular métricas descritivas
+    y_mean = np.mean(y_test)
+    mse_percentage = (test_loss / y_mean) * 100
+    mae_percentage = (test_mae / y_mean) * 100
+    metrics = {
+        "Erro Quadrático Médio (MSE)": f"{mse_percentage:.2f}% - Mede a variância dos erros.",
+        "Erro Absoluto Médio (MAE)": f"{mae_percentage:.2f}% - Mede o desvio médio entre previsto e real.",
+        "MAE como Percentual da Média": f"{mae_percentage:.2f}% - Relaciona o erro absoluto à média dos valores reais."
+    }
 
-def train_and_evaluate_model(X_train, y_train, X_val, y_val):
-    """
-    Treina um modelo Random Forest e avalia seu desempenho.
-    """
-    print("Iniciando o treinamento do modelo de curto prazo...")
+    # Salvar o modelo no formato recomendado
+    print(f"[INFO] Salvando o modelo treinado em: {model_output}")
+    model.save(model_output)
 
-    # Instanciar e treinar o modelo
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
-
-    # Predição no conjunto de validação
-    y_pred_val = model.predict(X_val)
-
-    # Avaliação do modelo
-    mse = mean_squared_error(y_val, y_pred_val)
-    mae = mean_absolute_error(y_val, y_pred_val)
-    r2 = r2_score(y_val, y_pred_val)
-
-    print(f"Erro Médio Quadrado (MSE) na validação: {mse:.2f}")
-    print(f"Erro Médio Absoluto (MAE) na validação: {mae:.2f}")
-    print(f"Coeficiente de Determinação (R²): {r2:.2f}")
-
-    # Salvar os conjuntos de treino
-    X_train.to_csv(OUTPUT_X_FILE)
-    y_train.to_csv(OUTPUT_Y_TRAIN_FILE)
-    print(f"Conjunto de treino salvo em {
-          OUTPUT_X_FILE} e {OUTPUT_Y_TRAIN_FILE}")
-
-    # Salvar previsões do conjunto de validação
-    y_pred_df = pd.DataFrame({'Predicted': y_pred_val}, index=y_val.index)
-    y_pred_df.to_csv(PREDICTIONS_FILE)
-    print(f"Previsões salvas em {PREDICTIONS_FILE}")
-
-
-def main():
-    """
-    Função principal para o treinamento do modelo de curto prazo.
-    """
-    X_train, y_train, X_val, y_val = load_and_prepare_data()
-    train_and_evaluate_model(X_train, y_train, X_val, y_val)
-
-
-if __name__ == "__main__":
-    main()
+    # Retornar as métricas para o pipeline
+    return metrics

@@ -60,41 +60,19 @@ def analyze_data(file_path):
 
 
 def main():
-    print("Executando o Pipeline do Módulo 1...")
+    print("==== Iniciando o Pipeline do Módulo 1 ====")
 
-    # 1. Coleta dos dados
+    # Etapas do pipeline
     asset_data = collect_data()
-    if asset_data is None:
-        print("Pipeline interrompido: erro na coleta de dados.")
-        return
-
-    # 2. Processamento dos dados
     processed_data = process_data(asset_data)
-    if processed_data is None:
-        print("Pipeline interrompido: erro na engenharia de features.")
-        return
-
-    # 3. Salvar dados processados
     file_path = save_data(processed_data)
-    if file_path is None:
-        print("Pipeline interrompido: erro ao salvar os dados processados.")
-        return
-
-    # 4. Análise dos dados
     analysis_results = analyze_data(file_path)
-    if analysis_results is None:
-        print("Pipeline interrompido: erro na análise dos dados.")
-        return
 
-    # 5. Iniciar o dashboard
+    # Iniciar o dashboard se configurado
     if RUN_DASHBOARD:
         print("Iniciando o dashboard...")
         start_dashboard()
 
 
 if __name__ == "__main__":
-    print("Executando o Dashboard...")
-    try:
-        start_dashboard()
-    except KeyboardInterrupt:
-        print("Dashboard encerrado pelo usuário.")
+    main()
