@@ -28,73 +28,47 @@ import cvxpy as cp
 
 
 class PortfolioOptimization:
-    def __init__(self, expected_returns, cov_matrix, asset_names, risk_aversion=0.1, min_weight=0.15, max_weight=0.65):
+    def __init__(self, expected_returns, cov_matrix, asset_names):
         """
         Inicializa a classe de otimização de portfólio.
 
         Args:
             expected_returns (np.ndarray): Retornos esperados dos ativos.
             cov_matrix (np.ndarray): Matriz de covariância dos ativos.
-            asset_names (list): Lista de nomes dos ativos.
-            risk_aversion (float): Parâmetro de aversão ao risco (λ).
-            min_weight (float): Peso mínimo permitido para cada ativo.
-            max_weight (float): Peso máximo permitido para cada ativo.
+            asset_names (list): Lista com os nomes dos ativos.
         """
         self.expected_returns = expected_returns
         self.cov_matrix = cov_matrix
         self.asset_names = asset_names
-        self.risk_aversion = risk_aversion
-        self.min_weight = min_weight
-        self.max_weight = max_weight
+        self.num_assets = len(asset_names)
 
-    def diagnose_inputs(self):
+    def optimize(self, target_return=0.001):
         """
-        Diagnostica os dados de entrada para a otimização.
+        Minimiza a variância do portfólio dado um nível mínimo de retorno esperado.
+
+        Args:
+            target_return (float): Retorno esperado mínimo do portfólio.
 
         Returns:
-            dict: Resumo dos diagnósticos.
+            dict: Pesos ótimos dos ativos no portfólio em formato percentual.
         """
-        diagnostics = {
-            "expected_returns_mean": self.expected_returns.mean(),
-            "expected_returns_min": self.expected_returns.min(),
-            "expected_returns_max": self.expected_returns.max(),
-            "cov_matrix_positive_definite": np.all(np.linalg.eigvals(self.cov_matrix) > 0),
-        }
-
-        # Identificar ativos problemáticos
-        problematic_assets = []
-        if diagnostics["expected_returns_min"] <= 0:
-            for i, ret in enumerate(self.expected_returns):
-                if ret <= 0:
-                    problematic_assets.append(self.asset_names[i])
-
-        diagnostics["problematic_assets"] = problematic_assets
-        return diagnostics
-
-    def optimize(self):
-        """
-        Resolve o problema de otimização para maximizar retorno ajustado ao risco.
-
-        Returns:
-            np.ndarray: Pesos ótimos para os ativos.
-        """
-        n = len(self.expected_returns)
-        weights = cp.Variable(n)
-
-        # Função objetivo: Maximizar retorno esperado menos aversão ao risco * volatilidade
+        weights = cp.Variable(self.num_assets)
+        portfolio_risk = cp.quad_form(weights, self.cov_matrix)
         portfolio_return = self.expected_returns @ weights
-        portfolio_volatility = cp.quad_form(weights, self.cov_matrix)
-        objective = cp.Maximize(
-            portfolio_return - self.risk_aversion * portfolio_volatility)
+
+        # Minimizar a variância
+        objective = cp.Minimize(portfolio_risk)
 
         # Restrições
         constraints = [
-            cp.sum(weights) == 1,  # A soma dos pesos deve ser 1
-            weights >= self.min_weight,  # Peso mínimo
-            weights <= self.max_weight  # Peso máximo
+            # Somatório dos pesos deve ser 100%
+            cp.sum(weights) == 1,
+            portfolio_return >= target_return,  # Retorno esperado mínimo
+            weights >= 0.10,                   # Peso mínimo de 10% por ativo
+            weights <= 0.75                    # Peso máximo de 75% por ativo
         ]
 
-        # Resolver o problema
+        # Resolver o problema de otimização
         problem = cp.Problem(objective, constraints)
         problem.solve()
 
@@ -102,31 +76,52 @@ class PortfolioOptimization:
             raise ValueError(
                 "O problema de otimização não encontrou uma solução viável.")
 
-        return weights.value
+        # Retornar os pesos em formato percentual
+        weights_percent = {name: round(
+            weight * 100, 2) for name, weight in zip(self.asset_names, weights.value)}
+        return weights_percent
+
+    def diagnose_inputs(self):
+        """
+        Diagnósticos dos dados de entrada.
+
+        Returns:
+            dict: Estatísticas dos retornos esperados e da matriz de covariância.
+        """
+        return {
+            "expected_returns_mean": self.expected_returns.mean(),
+            "expected_returns_min": self.expected_returns.min(),
+            "expected_returns_max": self.expected_returns.max(),
+            "cov_matrix_positive_definite": np.all(np.linalg.eigvals(self.cov_matrix) > 0)
+        }
 
 
 if __name__ == "__main__":
-    # Dados de exemplo para teste
-    expected_returns = np.array([0.1, 0.12, -0.02])  # Retornos esperados
-    cov_matrix = np.array([  # Matriz de covariância
-        [0.1, 0.02, 0.04],
-        [0.02, 0.08, 0.03],
-        [0.04, 0.03, 0.12]
-    ])
-    asset_names = ["Asset1", "Asset2", "Asset3"]
+    # Exemplo de uso
+    import pandas as pd
+    input_file = "BackPython/DADOS/mc_simulations.csv"
 
-    # Inicializar a otimização
+    print("[INFO] Carregando simulações...")
+    simulations = pd.read_csv(input_file, index_col="Time")
+
+    print("[INFO] Removendo índice BOVESPA dos dados...")
+    if "^BVSP" in simulations.columns:
+        simulations = simulations.drop(columns=["^BVSP"])
+
+    print("[INFO] Calculando retornos esperados e matriz de covariância...")
+    log_returns = np.log(simulations / simulations.shift(1)).dropna()
+    expected_returns = log_returns.mean().values
+    cov_matrix = log_returns.cov().values
+    asset_names = simulations.columns.tolist()
+
+    print("[INFO] Iniciando otimização do portfólio...")
     optimizer = PortfolioOptimization(
-        expected_returns, cov_matrix, asset_names, risk_aversion=0.1)
-
-    # Diagnóstico dos dados
+        expected_returns, cov_matrix, asset_names)
     diagnostics = optimizer.diagnose_inputs()
-    print("Diagnósticos dos Dados:", diagnostics)
+    print("Diagnósticos:", diagnostics)
 
-    # Calcular pesos ótimos
     try:
-        optimal_weights = optimizer.optimize()
-        print("Pesos Ótimos:", optimal_weights)
+        optimal_weights = optimizer.optimize(target_return=0.001)
+        print("Pesos Ótimos (em %):", optimal_weights)
     except ValueError as e:
         print("Erro na otimização:", e)
-        print("Ativos Problemáticos:", diagnostics["problematic_assets"])

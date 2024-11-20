@@ -44,110 +44,88 @@
 
 # Importar bibliotecas necessárias
 
-import numpy as np
 import pandas as pd
+import numpy as np
+from arch import arch_model
+from tqdm import tqdm
 
 
-class MonteCarloSimulation:
-    def __init__(self, data, num_simulations=1000, time_horizon=252):
-        """
-        Inicializa a classe de simulação Monte Carlo.
+def simulate_garch(data, num_simulations=1000):
+    """
+    Simula retornos futuros usando o modelo GARCH(1,1) para o intervalo completo do histórico.
 
-        Args:
-            data (pd.DataFrame): Dados históricos dos ativos, contendo preços ajustados.
-            num_simulations (int): Número de simulações.
-            time_horizon (int): Horizonte de tempo para as simulações (em dias úteis).
-        """
-        self.data = data
-        self.num_simulations = num_simulations
-        self.time_horizon = time_horizon
+    Args:
+        data (pd.DataFrame): Dados históricos contendo os retornos logarítmicos.
+        num_simulations (int): Número de simulações a serem realizadas.
 
-    def calculate_log_returns(self):
-        """
-        Calcula os retornos logarítmicos dos ativos.
+    Returns:
+        pd.DataFrame: Simulações de Monte Carlo para o período histórico completo.
+    """
+    simulations = {}
+    historical_dates = data["Date"]  # Datas históricas
+    num_days = len(historical_dates)  # Usar todo o período histórico
 
-        Returns:
-            pd.DataFrame: DataFrame com os retornos logarítmicos.
-        """
-        return np.log(self.data / self.data.shift(1)).dropna()
+    for column in tqdm(data.columns[1:], desc="Simulando retornos"):
+        # Ajustar o modelo GARCH
+        returns = data[column].pct_change().dropna()  # Calcular retornos
+        returns_scaled = returns * 100  # Ajustar escala para o GARCH
 
-    def simulate(self):
-        """
-        Realiza as simulações de Monte Carlo para os ativos.
+        model = arch_model(returns_scaled, vol='Garch',
+                           p=1, q=1, dist='normal')
+        fitted_model = model.fit(disp="off")
 
-        Returns:
-            dict: Um dicionário contendo as simulações para cada ativo.
-        """
-        log_returns = self.calculate_log_returns()
-        mean_returns = log_returns.mean()
-        std_devs = log_returns.std()
+        # Recuperar os parâmetros ajustados
+        omega = fitted_model.params['omega']
+        alpha = fitted_model.params['alpha[1]']
+        beta = fitted_model.params['beta[1]']
+        variance = fitted_model.conditional_volatility.iloc[-1] ** 2
+        last_return = returns_scaled.iloc[-1]
 
-        simulations = {}
-        for asset in self.data.columns:
-            asset_simulations = np.zeros(
-                (self.time_horizon, self.num_simulations))
-            for sim in range(self.num_simulations):
-                random_walk = np.random.normal(
-                    mean_returns[asset], std_devs[asset], self.time_horizon
-                )
-                asset_simulations[:, sim] = np.cumprod(1 + random_walk)
+        # Simular caminhos futuros
+        simulated_paths = []
+        for _ in range(num_simulations):
+            simulated_returns = []
+            current_variance = variance
 
-            simulations[asset] = asset_simulations
+            for _ in range(num_days):
+                innovation = np.random.normal(0, np.sqrt(current_variance))
+                simulated_return = last_return + innovation
+                current_variance = omega + alpha * \
+                    (innovation ** 2) + beta * current_variance
+                simulated_returns.append(simulated_return)
 
-        return simulations
+            simulated_paths.append(simulated_returns)
 
-    def calculate_portfolio_metrics(self, weights, simulations):
-        """
-        Calcula os retornos esperados e a volatilidade do portfólio com base nas simulações.
+        # Combinar dados históricos com a média dos simulados
+        simulations[column] = np.concatenate([
+            returns_scaled / 100,  # Reverter escala histórica
+            np.mean(simulated_paths, axis=0) / 100  # Reverter escala simulada
+        ])
 
-        Args:
-            weights (list): Pesos dos ativos no portfólio.
-            simulations (dict): Simulações de Monte Carlo dos ativos.
+    # Criar DataFrame com datas e dados combinados
+    simulation_df = pd.DataFrame(simulations)
+    simulation_df["Date"] = historical_dates  # Usar o intervalo completo
+    return simulation_df
 
-        Returns:
-            tuple: Retorno esperado e volatilidade do portfólio.
-        """
-        portfolio_returns = np.zeros((self.time_horizon, self.num_simulations))
 
-        for asset, asset_simulations in simulations.items():
-            asset_index = list(self.data.columns).index(asset)
-            portfolio_returns += asset_simulations * weights[asset_index]
+def main():
+    # Caminho para os dados históricos
+    historical_data_path = "BackPython/DADOS/historical_data_cleaned.csv"
+    mc_simulations_path = "BackPython/DADOS/mc_simulations.csv"
 
-        expected_return = portfolio_returns[-1, :].mean()
-        volatility = portfolio_returns[-1, :].std()
+    # Carregar os dados históricos
+    print("[INFO] Carregando dados históricos...")
+    historical_data = pd.read_csv(historical_data_path, parse_dates=["Date"])
 
-        return expected_return, volatility
+    # Executar simulações de Monte Carlo usando GARCH
+    print("[INFO] Iniciando simulações de Monte Carlo usando GARCH...")
+    mc_simulations = simulate_garch(historical_data)
+
+    # Salvar as simulações no arquivo
+    print("[INFO] Salvando simulações em arquivo...")
+    mc_simulations.to_csv(mc_simulations_path, index=False)
+    print(f"[INFO] Simulações salvas em {mc_simulations_path}")
 
 
 if __name__ == "__main__":
-    # Carregar os dados processados
-    file_path = "BackPython/DADOS/asset_data_cleaner.csv"
-    asset_data = pd.read_csv(file_path, index_col=0, parse_dates=True)
-
-    # Substituir zeros nos dados por um pequeno valor para evitar problemas
-    asset_data_cleaned = asset_data.replace(0, 1e-6)
-
-    # Filtrar apenas os preços ajustados para simulações
-    price_columns = [
-        col for col in asset_data_cleaned.columns
-        if not ("returns" in col or "ma" in col or "volatility" in col)
-    ]
-    price_data = asset_data_cleaned[price_columns]
-
-    # Inicializar o simulador de Monte Carlo
-    mc_simulator = MonteCarloSimulation(price_data)
-
-    # Executar as simulações de Monte Carlo
-    simulations = mc_simulator.simulate()
-
-    # Definir pesos iniciais hipotéticos para os ativos
-    portfolio_weights = [0.15] * len(price_data.columns)
-
-    # Calcular métricas do portfólio
-    expected_return, volatility = mc_simulator.calculate_portfolio_metrics(
-        portfolio_weights, simulations
-    )
-
-    # Exibir os resultados
-    print(f"Expected Return: {expected_return}")
-    print(f"Portfolio Volatility: {volatility}")
+    main()

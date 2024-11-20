@@ -23,66 +23,60 @@
 
 # Importar os módulos necessários
 
+import pandas as pd
 from BP_mod3_simulation import MonteCarloSimulation
 from BP_mod3_optimization import PortfolioOptimization
 from BP_mod3_dashboard import Dashboard
-import pandas as pd
-import numpy as np
 
 
-def main_pipeline(data_file="BackPython/DADOS/asset_data_cleaner.csv", benchmark_file="BackPython/DADOS/asset_data_raw.csv"):
+def main_pipeline(data_file="BackPython/DADOS/historical_data_cleaned.csv",
+                  simulations_file="BackPython/DADOS/mc_simulations.csv",
+                  benchmark_file="BackPython/DADOS/historical_data_cleaned.csv"):
     """
-    Pipeline principal para o Módulo 3: Simulação, Otimização e Visualização.
+    Pipeline principal para o módulo 3.
 
     Args:
-        data_file (str): Caminho para o arquivo de dados processados.
-        benchmark_file (str): Caminho para o arquivo com dados do benchmark.
+        data_file (str): Caminho para o arquivo de dados históricos limpos.
+        simulations_file (str): Caminho para salvar as simulações de Monte Carlo.
+        benchmark_file (str): Caminho para o arquivo de dados do benchmark.
     """
-    # Etapa 1: Carregar dados e executar simulações
-    print("[INFO] Carregando dados dos ativos...")
-    asset_data = pd.read_csv(data_file, index_col=0, parse_dates=True)
-    asset_data_cleaned = asset_data.replace(0, 1e-6)
 
-    # Filtrar apenas os preços ajustados
-    price_columns = [
-        col for col in asset_data_cleaned.columns
-        if not ("returns" in col or "ma" in col or "volatility" in col)
-    ]
-    price_data = asset_data_cleaned[price_columns]
+    # 1. Carregar os dados históricos limpos
+    print("[INFO] Carregando dados históricos limpos...")
+    historical_data = pd.read_csv(
+        data_file, index_col="Date", parse_dates=True)
 
+    # 2. Executar simulações de Monte Carlo
     print("[INFO] Iniciando simulações de Monte Carlo...")
-    mc_simulator = MonteCarloSimulation(price_data)
-    simulations = mc_simulator.simulate()
+    mc_simulation = MonteCarloSimulation(historical_data)
+    mc_results = mc_simulation.run_simulations()
+    mc_results.to_csv(simulations_file)
+    print("[INFO] Simulações de Monte Carlo concluídas e salvas.")
 
-    # Etapa 2: Otimizar portfólio
-    print("[INFO] Calculando retornos esperados e matriz de covariância...")
-    log_returns = mc_simulator.calculate_log_returns()
+    # 3. Otimizar o portfólio
+    print("[INFO] Carregando simulações para otimização...")
+    log_returns = pd.read_csv(simulations_file, index_col="Time")
     expected_returns = log_returns.mean().values
     cov_matrix = log_returns.cov().values
-    asset_names = price_data.columns.tolist()  # Nomes dos ativos
-
-    print("[INFO] Iniciando otimização de portfólio...")
+    asset_names = log_returns.columns.tolist()
     optimizer = PortfolioOptimization(
         expected_returns, cov_matrix, asset_names)
-    diagnostics = optimizer.diagnose_inputs()
-    print("Diagnósticos dos Dados:", diagnostics)
 
+    print("[INFO] Executando otimização do portfólio...")
     try:
-        optimal_weights = optimizer.optimize()
-        print("Pesos Ótimos:", optimal_weights)
+        optimal_weights = optimizer.optimize(target_return=0.001)
+        print("Pesos Ótimos (em %):", optimal_weights)
     except ValueError as e:
         print("Erro na otimização:", e)
-        print("Ativos Problemáticos:", diagnostics["problematic_assets"])
         return
 
-    # Etapa 3: Preparar dados do benchmark
-    print("[INFO] Carregando dados do benchmark...")
-    benchmark_data = pd.read_csv(benchmark_file, index_col=0, parse_dates=True)
-    benchmark_data = benchmark_data[["^BVSP"]]
-
-    # Etapa 4: Inicializar o dashboard
+    # 4. Inicializar o dashboard
     print("[INFO] Inicializando o dashboard...")
-    dashboard = Dashboard(simulations, optimal_weights, benchmark_data)
+    benchmark_data = pd.read_csv(
+        benchmark_file, index_col="Date", parse_dates=True)
+    benchmark_data["Normalized"] = benchmark_data["^BVSP"] / \
+        benchmark_data["^BVSP"].iloc[0]
+    dashboard = Dashboard(mc_results, optimal_weights, benchmark_data)
     app = dashboard.create_dashboard()
     app.run_server(debug=True, host="127.0.0.1", port=8050)
 
