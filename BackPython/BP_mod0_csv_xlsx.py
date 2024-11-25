@@ -7,8 +7,8 @@ import pandas as pd
 
 # Caminho do arquivo CSV e destino XLSX
 # Substitua pelo seu arquivo CSV
-csv_file = 'BackPython/DADOS/historical_data_cleaned.csv'
-xlsx_file = 'BackPython/DADOS/asset_data_cleaner.xlsx'  # Nome do arquivo de saída
+csv_file = 'BackPython/DADOS/simulacoes_montecarlo.csv'
+xlsx_file = 'BackPython/DADOS/simulacoes_montecarlo.xlsx'  # Nome do arquivo de saída
 
 # Carregar o CSV no DataFrame
 data = pd.read_csv(csv_file)

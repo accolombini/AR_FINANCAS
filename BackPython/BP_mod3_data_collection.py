@@ -21,18 +21,18 @@ def fetch_and_clean_data(tickers, start_date="2010-01-01", end_date=None, max_re
         pd.DataFrame: Dados consolidados com preços ajustados de fechamento.
         list: Lista de tickers que falharam.
     """
-    print("[INFO] Baixando dados históricos...")
+    print("[INFO] Iniciando download de dados históricos...")
     failed_tickers = []
     all_data = []
 
     for ticker in tickers:
         for attempt in range(max_retries):
             try:
-                # Baixar os dados do ticker
                 print(f"[INFO] Baixando dados para {
                       ticker} (tentativa {attempt + 1})...")
-                data = yf.download(ticker, start=start_date, end=end_date,
-                                   group_by="ticker", auto_adjust=True, timeout=timeout)
+                data = yf.download(
+                    ticker, start=start_date, end=end_date, group_by="ticker", auto_adjust=True, timeout=timeout
+                )
 
                 # Verificar se o ticker retornou dados válidos
                 if "Close" in data and not data["Close"].empty:
@@ -57,8 +57,24 @@ def fetch_and_clean_data(tickers, start_date="2010-01-01", end_date=None, max_re
     else:
         consolidated_df = pd.DataFrame()
 
-    print("[INFO] Dados coletados e limpos com sucesso.")
     return consolidated_df, failed_tickers
+
+
+def align_to_min_available_date(df):
+    """
+    Alinha os dados ao menor período histórico disponível, baseado no primeiro registro de cada ticker.
+
+    Args:
+        df (pd.DataFrame): DataFrame consolidado com dados de vários tickers.
+
+    Returns:
+        pd.DataFrame: DataFrame alinhado ao menor período histórico comum.
+    """
+    min_dates = df.apply(lambda x: x.first_valid_index(), axis=0)
+    min_date = max(min_dates)
+
+    print(f"[INFO] Alinhando os dados ao menor período disponível: {min_date}")
+    return df.loc[min_date:]
 
 
 def process_date_column(df):
@@ -71,9 +87,8 @@ def process_date_column(df):
     Returns:
         pd.DataFrame: DataFrame com o índice 'Date' sem timezone.
     """
-    df.index = pd.to_datetime(
-        df.index)  # Certificar-se de que o índice é datetime
-    df.index = df.index.tz_localize(None)  # Remover timezone, se presente
+    df.index = pd.to_datetime(df.index)
+    df.index = df.index.tz_localize(None)
     return df
 
 
@@ -88,23 +103,23 @@ if __name__ == "__main__":
     historical_data, failed_tickers = fetch_and_clean_data(
         tickers, start_date=start_date)
 
-    # Verificar se dados foram coletados
     if not historical_data.empty:
         # Processar o índice 'Date' para remover timezone
         print("[INFO] Processando campo 'Date' para remover timezone...")
         historical_data = process_date_column(historical_data)
 
-        # Remover linhas com dados faltantes
-        print("[INFO] Removendo linhas com dados faltantes...")
-        historical_data.dropna(inplace=True)
+        # Alinhar os dados ao menor período histórico disponível
+        historical_data = align_to_min_available_date(historical_data)
 
-        # Salvar em CSV
+        # Imputar valores faltantes (apenas dados válidos)
+        print("[INFO] Imputando valores faltantes...")
+        historical_data.ffill(inplace=True)
+
+        # Ordenar e salvar os dados limpos
         print(f"[INFO] Salvando dados limpos em {output_file}...")
+        historical_data.sort_index(inplace=True)
         historical_data.to_csv(output_file, index_label="Date")
         print("[INFO] Processo concluído com sucesso!")
-    else:
-        print("[WARNING] Nenhum dado foi baixado. Arquivo CSV não será gerado.")
 
-    # Exibir tickers que falharam
     if failed_tickers:
         print(f"[WARNING] Os seguintes tickers falharam: {failed_tickers}")
