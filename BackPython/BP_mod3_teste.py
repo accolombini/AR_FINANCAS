@@ -110,8 +110,7 @@ y = historical_data["Portfolio_log_return"]
 
 # Configurar validação cruzada temporal
 tscv = TimeSeriesSplit(n_splits=5)
-params = {"n_estimators": 300, "max_depth": 6,
-          "learning_rate": 0.03, "reg_lambda": 1.0, "reg_alpha": 0.5}
+params = {"n_estimators": 200, "max_depth": 4, "learning_rate": 0.05}
 model = XGBRegressor(**params)
 
 # Validar modelo com validação cruzada
@@ -142,11 +141,8 @@ future_dates = pd.date_range(
 last_features = X.iloc[-1].values.reshape(1, -1)
 future_returns = []
 
-# Introduzir variabilidade nas previsões iterativas para refletir volatilidade
 for _ in range(180):
     next_return = model.predict(last_features)[0]
-    # Adicionar um ruído baseado na variabilidade histórica
-    next_return += np.random.normal(0, y.std())
     future_returns.append(next_return)
     # Atualizar as features para a próxima previsão
     last_features = np.roll(last_features, -1)  # Deslocar as features
@@ -181,9 +177,9 @@ app.layout = html.Div([
         id="performance-graph",
         figure={
             "data": [
-                go.Scatter(x=historical_data["Date"], y=historical_data["Portfolio_log_return"],
+                go.Scatter(x=historical_data.index, y=historical_data["Portfolio_log_return"],
                            mode="lines", name="Real"),
-                go.Scatter(x=historical_data["Date"][-len(y_test):], y=y_pred,
+                go.Scatter(x=historical_data.index[-len(y_test):], y=y_pred,
                            mode="lines", name="Previsto"),
             ],
             "layout": go.Layout(
