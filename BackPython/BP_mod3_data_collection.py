@@ -1,12 +1,27 @@
-'''Baixar dados da B3 e salvar em arquivo .csv, manter o campo Date mas sem o timezone'''
-
-# Incluir bibliotecas necessárias
+# BP_mod3_data_collection.py: Coleta e Processamento de Dados Históricos da B3
+# -----------------------------------------------------------
+# Este script realiza a coleta de dados históricos de ativos da B3
+# utilizando a biblioteca yfinance. Ele integra-se ao módulo de configuração
+# BP_mod1_config.py para acessar parâmetros como lista de ativos, período de análise,
+# e diretórios de saída. Inclui:
+# - Download de dados históricos de preços ajustados.
+# - Processamento do campo 'Date' para remover timezones.
+# - Alinhamento ao menor período histórico disponível.
+# - Salvamento dos dados limpos em formato CSV.
+# -----------------------------------------------------------
 import yfinance as yf
 import pandas as pd
+import os
 import time
+import logging
+from BP_mod1_config import ASSETS, START_DATE, END_DATE, OUTPUT_DIR, atualizar_start_date
+
+# Configuração de logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def fetch_and_clean_data(tickers, start_date="2010-01-01", end_date=None, max_retries=3, timeout=20):
+def fetch_and_clean_data(tickers, start_date, end_date, max_retries=3, timeout=20):
     """
     Coleta e limpeza de dados históricos para ativos e benchmarks.
 
@@ -21,43 +36,44 @@ def fetch_and_clean_data(tickers, start_date="2010-01-01", end_date=None, max_re
         pd.DataFrame: Dados consolidados com preços ajustados de fechamento.
         list: Lista de tickers que falharam.
     """
-    print("[INFO] Iniciando download de dados históricos...")
+    logging.info("Iniciando download de dados históricos...")
     failed_tickers = []
     all_data = []
+    min_dates = {}
 
     for ticker in tickers:
         for attempt in range(max_retries):
             try:
-                print(f"[INFO] Baixando dados para {
-                      ticker} (tentativa {attempt + 1})...")
+                logging.info(f"Baixando dados para {
+                             ticker} (tentativa {attempt + 1})...")
                 data = yf.download(
                     ticker, start=start_date, end=end_date, group_by="ticker", auto_adjust=True, timeout=timeout
                 )
 
-                # Verificar se o ticker retornou dados válidos
                 if "Close" in data and not data["Close"].empty:
                     temp_df = data[["Close"]].rename(columns={"Close": ticker})
                     all_data.append(temp_df)
-                    print(f"[INFO] Dados para {ticker} baixados com sucesso.")
-                    break  # Sucesso, sair do loop de tentativas
+                    min_dates[ticker] = temp_df.first_valid_index().strftime(
+                        '%Y-%m-%d')
+                    logging.info(f"Dados para {ticker} baixados com sucesso.")
+                    break
                 else:
                     raise ValueError(
                         f"Dados inválidos recebidos para {ticker}.")
             except Exception as e:
-                print(f"[WARNING] Falha ao baixar dados para {ticker}: {e}")
-                time.sleep(2)  # Esperar antes de tentar novamente
+                logging.warning(f"Falha ao baixar dados para {ticker}: {e}")
+                time.sleep(2)
                 if attempt == max_retries - 1:
-                    print(
-                        f"[ERROR] Máximo de tentativas atingido para {ticker}.")
+                    logging.error(
+                        f"Máximo de tentativas atingido para {ticker}.")
                     failed_tickers.append(ticker)
 
-    # Consolidar os dados em um único DataFrame
     if all_data:
         consolidated_df = pd.concat(all_data, axis=1)
     else:
         consolidated_df = pd.DataFrame()
 
-    return consolidated_df, failed_tickers
+    return consolidated_df, failed_tickers, min_dates
 
 
 def align_to_min_available_date(df):
@@ -72,8 +88,7 @@ def align_to_min_available_date(df):
     """
     min_dates = df.apply(lambda x: x.first_valid_index(), axis=0)
     min_date = max(min_dates)
-
-    print(f"[INFO] Alinhando os dados ao menor período disponível: {min_date}")
+    logging.info(f"Alinhando os dados ao menor período disponível: {min_date}")
     return df.loc[min_date:]
 
 
@@ -92,34 +107,39 @@ def process_date_column(df):
     return df
 
 
-if __name__ == "__main__":
-    # Definir ativos de interesse e benchmark
-    tickers = ["VALE3.SA", "PETR4.SA", "ITUB4.SA",
-               "PGCO34.SA", "AAPL34.SA", "AMZO34.SA", "^BVSP"]
-    start_date = "2010-01-01"
-    output_file = "BackPython/DADOS/historical_data_cleaned.csv"
+def main():
+    """
+    Executa o fluxo completo de coleta, limpeza e salvamento dos dados históricos.
+    """
+    output_file = os.path.join(OUTPUT_DIR, "historical_data_cleaned.csv")
 
-    # Coletar e limpar os dados
-    historical_data, failed_tickers = fetch_and_clean_data(
-        tickers, start_date=start_date)
+    logging.info("Coletando e processando dados históricos...")
+    historical_data, failed_tickers, min_dates = fetch_and_clean_data(
+        ASSETS, start_date=START_DATE, end_date=END_DATE
+    )
 
     if not historical_data.empty:
-        # Processar o índice 'Date' para remover timezone
-        print("[INFO] Processando campo 'Date' para remover timezone...")
+        logging.info("Processando campo 'Date' para remover timezone...")
         historical_data = process_date_column(historical_data)
 
-        # Alinhar os dados ao menor período histórico disponível
+        # Atualizar START_DATE dinamicamente
+        atualizar_start_date(min_dates)
+
+        logging.info(
+            "Alinhando os dados ao menor período histórico disponível...")
         historical_data = align_to_min_available_date(historical_data)
 
-        # Imputar valores faltantes (apenas dados válidos)
-        print("[INFO] Imputando valores faltantes...")
+        logging.info("Imputando valores faltantes...")
         historical_data.ffill(inplace=True)
 
-        # Ordenar e salvar os dados limpos
-        print(f"[INFO] Salvando dados limpos em {output_file}...")
+        logging.info(f"Salvando dados limpos em {output_file}...")
         historical_data.sort_index(inplace=True)
         historical_data.to_csv(output_file, index_label="Date")
-        print("[INFO] Processo concluído com sucesso!")
+        logging.info("Processo concluído com sucesso!")
 
     if failed_tickers:
-        print(f"[WARNING] Os seguintes tickers falharam: {failed_tickers}")
+        logging.warning(f"Os seguintes tickers falharam: {failed_tickers}")
+
+
+if __name__ == "__main__":
+    main()

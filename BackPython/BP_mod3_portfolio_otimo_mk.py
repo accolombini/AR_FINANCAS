@@ -1,86 +1,66 @@
-'''
-    Objetivos do Script
-        Calcular os pesos ótimos dos ativos no portfólio:
+# BP_mod3_portfolio_otimo_mk.py: Otimização de Portfólio com Análise Anual Melhorada
+# -----------------------------------------------------------
+# Este script otimiza o portfólio e exibe os retornos médios anuais.
+# Inclui uma tabela detalhada e formatada com valores percentuais.
+# -----------------------------------------------------------
 
-        Maximizar o Índice de Sharpe.
-        Respeitar restrições como:
-        Pesos somando 100%.
-        Limitação de 30% para qualquer ativo.
-        Representação proporcional de setores.
-        Outperformar o índice BOVESPA (opcional como objetivo secundário).
-        Salvar os pesos em um arquivo CSV:
-
-        Nome do arquivo: portfolio_otimizado.csv.
-        Entrada e saída:
-
-        Entrada: Dados históricos dos ativos (ex.: historical_data_cleaned.csv).
-        Saída: Arquivo portfolio_otimizado.csv com os pesos de cada ativo.
-        Plano de Desenvolvimento
-        Importação de Bibliotecas:
-
-        Usar numpy, pandas para manipulação de dados.
-        scipy.optimize para otimização.
-        (Opcional) cvxpy ou pyportfolioopt para uma abordagem especializada.
-        Funções Principais:
-
-        Função para calcular o Índice de Sharpe:
-        Sharpe
-        Retorno_Esperado
-        Taxa_Livre_de_Risco
-        Volatilidade
-        Sharpe= Volatilidade Retorno_Esperado-Taxa_Livre_de_Risco
-        Função de otimização:
-        Utiliza scipy.optimize.minimize com restrições.
-        Função para salvar os resultados no CSV.
-        Fluxo do Script:
-
-        Carregar os dados históricos.
-        Calcular os retornos esperados e a matriz de covariância.
-        Configurar e executar a otimização.
-        Salvar os pesos resultantes.
-'''
-
-# Importar bibliotecas necessárias
 import pandas as pd
 import numpy as np
 from scipy.optimize import minimize
-import yfinance as yf
+import logging
+from BP_mod1_config import OUTPUT_DIR
+
+# Configuração de logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# ---------------------------
+# Funções Auxiliares
+# ---------------------------
 
 
 def carregar_dados(filepath):
     """
-    Carrega os dados do arquivo CSV e remove colunas irrelevantes.
+    Carrega os dados do arquivo CSV.
     """
-    data = pd.read_csv(filepath, index_col="Date", parse_dates=True)
-
-    # Remover colunas irrelevantes (como o benchmark ^BVSP)
-    if "^BVSP" in data.columns:
-        data = data.drop(columns=["^BVSP"])
-
-    return data
+    try:
+        data = pd.read_csv(filepath, index_col="Date", parse_dates=True)
+        logging.info(f"Dados carregados de {filepath}.")
+        return data
+    except FileNotFoundError:
+        logging.error(f"Arquivo não encontrado: {filepath}")
+        raise
 
 
 def identificar_setores(tickers):
     """
-    Identifica os setores dos ativos usando yfinance.
-
-    Args:
-        tickers (list): Lista de tickers.
-
-    Returns:
-        dict: Mapeamento de setores para cada ativo.
+    Identifica os setores dos ativos de forma manual ou usando uma API.
     """
-    setores = {}
-    for ticker in tickers:
-        try:
-            info = yf.Ticker(ticker).info
-            setor = info.get("sector", "Desconhecido")
-            setores[ticker] = setor
-        except Exception as e:
-            print(f"[WARNING] Falha ao obter setor para {ticker}: {e}")
-            setores[ticker] = "Desconhecido"
+    setores = {
+        "PETR4.SA": "Energy",
+        "PGCO34.SA": "Consumer Defensive",
+        "AAPL34.SA": "Technology",
+        "AMZO34.SA": "Consumer Cyclical",
+        "VALE3.SA": "Basic Materials"
+    }
+    return {ticker: setores.get(ticker, "Unknown") for ticker in tickers}
 
-    return setores
+
+def calcular_retorno_anual(data, pesos):
+    """
+    Calcula os retornos médios anuais do portfólio otimizado.
+    """
+    retornos = data.pct_change().dropna()
+    retorno_ponderado = retornos.dot(pesos)
+
+    # Calcula os retornos anuais
+    retorno_anual = retorno_ponderado.resample(
+        'YE').apply(lambda x: (1 + x).prod() - 1)
+    retorno_anual.index = retorno_anual.index.year  # Usar apenas os anos no índice
+
+    # Converter para percentuais
+    retorno_anual_percentual = retorno_anual * 100
+    return retorno_anual_percentual
 
 
 def otimizar_portfolio(data, setores, pesos_minimos_setor, retorno_minimo=0.15):
@@ -94,18 +74,18 @@ def otimizar_portfolio(data, setores, pesos_minimos_setor, retorno_minimo=0.15):
 
     def funcao_objetivo(pesos):
         risco = np.sqrt(np.dot(pesos.T, np.dot(cov_matrix, pesos)))
-        return risco  # Minimizar o risco para um dado retorno
+        retorno = np.dot(pesos, media_retornos)
+        return -retorno / risco
 
     # Restrições
     constraints = [
         {"type": "eq", "fun": lambda pesos: np.sum(
             pesos) - 1},  # Pesos somam 100%
         {"type": "ineq", "fun": lambda pesos: np.dot(
-            # Retorno mínimo diário equivalente
-            pesos, media_retornos) - retorno_minimo / 252}
+            pesos, media_retornos) - retorno_minimo / 252}  # Retorno mínimo
     ]
 
-    # Adicionar restrições setoriais
+    # Adicionar restrições setoriais dinamicamente
     for setor, peso_minimo in pesos_minimos_setor.items():
         indices_setor = [i for i, ativo in enumerate(
             ativos) if setores.get(ativo) == setor]
@@ -116,7 +96,7 @@ def otimizar_portfolio(data, setores, pesos_minimos_setor, retorno_minimo=0.15):
             })
 
     # Limites para pesos individuais
-    bounds = [(0, 0.3) for _ in ativos]  # Pesos entre 0% e 30%
+    bounds = [(0, 0.3) for _ in ativos]
 
     # Pesos iniciais
     pesos_iniciais = np.array([1 / len(ativos)] * len(ativos))
@@ -126,63 +106,56 @@ def otimizar_portfolio(data, setores, pesos_minimos_setor, retorno_minimo=0.15):
                          bounds=bounds, constraints=constraints, method='SLSQP')
 
     if not resultado.success:
+        logging.error(f"Detalhes da falha: {resultado.message}")
         raise ValueError("Falha na otimização do portfólio.")
 
-    # Retorna os pesos em porcentagem
-    return {ativos[i]: resultado.x[i] * 100 for i in range(len(ativos))}, np.dot(resultado.x, media_retornos) * 252
+    retorno_esperado = np.dot(resultado.x, media_retornos) * 252
+    return {ativos[i]: resultado.x[i] for i in range(len(ativos))}, retorno_esperado
+
+# ---------------------------
+# Fluxo Principal
+# ---------------------------
 
 
 def main():
-    # Definir tickers do portfólio
-    tickers = ["PETR4.SA", "ITUB4.SA", "PGCO34.SA",
-               "AAPL34.SA", "AMZO34.SA", "VALE3.SA"]
-
-    # Identificar setores automaticamente
-    setores = identificar_setores(tickers)
-    print(f"[INFO] Setores identificados: {setores}")
-
-    # Pesos mínimos por setor
-    pesos_minimos_setor = {
-        "Energy": 0.10,
-        "Financial Services": 0.10,
-        "Consumer Cyclical": 0.10,
-        "Technology": 0.20,
-        "Basic Materials": 0.10  # Setor para VALE3.SA (Mineração)
-    }
-
-    # Retorno mínimo anual (em proporção: ex. 0.15 para 15%)
-    retorno_minimo = 0.15
-
-    # Caminho para o arquivo CSV
-    filepath = "BackPython/DADOS/historical_data_cleaned.csv"
-
-    # Carregar dados
+    filepath = f"{OUTPUT_DIR}/historical_data_filtered.csv"
     data = carregar_dados(filepath)
 
-    # Otimizar portfólio
+    tickers = data.columns.tolist()
+    setores = identificar_setores(tickers)
+
+    logging.info(f"Setores identificados: {setores}")
+
+    pesos_minimos_setor = {
+        "Energy": 0.10,
+        "Consumer Defensive": 0.10,
+        "Technology": 0.20,
+        "Basic Materials": 0.10,
+        "Consumer Cyclical": 0.10
+    }
+
     pesos_otimos, retorno_esperado_anual = otimizar_portfolio(
-        data, setores, pesos_minimos_setor, retorno_minimo=retorno_minimo)
+        data, setores, pesos_minimos_setor)
 
-    # Exibir informações no console
-    print("\n[INFO] Resultados do Portfólio Otimizado:")
-    for setor in set(setores.values()):
-        ativos_setor = [ativo for ativo, s in setores.items() if s == setor]
-        peso_setor = sum(pesos_otimos.get(ativo, 0) for ativo in ativos_setor)
-        print(f"Setor: {setor}")
-        for ativo in ativos_setor:
-            print(f"  Ativo: {ativo}, Peso: {pesos_otimos.get(ativo, 0):.2f}%")
-        print(f"  Peso Total do Setor: {peso_setor:.2f}%\n")
+    # Calculando retornos anuais do portfólio
+    retorno_anual = calcular_retorno_anual(
+        data, np.array(list(pesos_otimos.values())))
 
-    print(f"Retorno Esperado Anual: {retorno_esperado_anual:.2%}")
-    if retorno_esperado_anual < retorno_minimo:
-        print("[WARNING] O retorno esperado está abaixo do mínimo desejado!")
+    # Exibindo os retornos anuais em formato legível
+    logging.info("\nRetornos Anuais do Portfólio (em %):")
+    print(retorno_anual)
 
-    # Salvar portfólio otimizado
-    df_pesos = pd.DataFrame(pesos_otimos.items(),
-                            columns=["Ativo", "Peso (%)"])
-    df_pesos.to_csv("BackPython/DADOS/portfolio_otimizado.csv", index=False)
+    # Salvar pesos otimizados
+    df_pesos = pd.DataFrame({
+        "Ativo": list(pesos_otimos.keys()),
+        "Peso (%)": [peso * 100 for peso in pesos_otimos.values()],
+        "Setor": [setores[ativo] for ativo in pesos_otimos.keys()]
+    })
 
-    print("Portfólio otimizado salvo em 'portfolio_otimizado.csv'.")
+    df_pesos.to_csv(f"{OUTPUT_DIR}/portfolio_otimizado.csv", index=False)
+    logging.info(f"Portfólio otimizado salvo em: {
+                 OUTPUT_DIR}/portfolio_otimizado.csv")
+    logging.info(f"Retorno esperado anual: {retorno_esperado_anual:.2%}")
 
 
 if __name__ == "__main__":
